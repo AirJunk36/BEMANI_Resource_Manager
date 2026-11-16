@@ -12,9 +12,6 @@ BGA playback, song/composer search, complete-song previews, WAV/original
 audio/MP4/GIF export, per-material visibility, picking, replacement and undo.
 Original game files are protected from overwrite.
 
-19th CN encrypted 2DX banks and charts support unpacking, playback and
-copy-based replacement. Full-song previews have an All button for BGA and
-Layer. Generated export names are English; replacement copies use `_replaced`.
 GIF exports preserve transparency at 50 FPS without audio.
 See [Layer playback](docs/LAYER_PLAYBACK.md) for judgement modes and version differences.
 
