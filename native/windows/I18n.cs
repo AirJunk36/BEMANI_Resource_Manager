@@ -13,6 +13,12 @@ namespace IIDXResourceViewer;
 
 public static class I18n
 {
+    public static string ExportName(string title,string fallback="asset",bool replaced=false) {
+        if(Values.TryGetValue(title,out var english))title=english;
+        string name=Regex.Replace(new string(title.Normalize(System.Text.NormalizationForm.FormD).Where(c=>c<=127).ToArray()),@"[^A-Za-z0-9._ -]+","_").Trim('.',' ','_');
+        if(name.Length==0)name=fallback.All(c=>c<=127)?fallback:"asset";
+        return replaced&&!name.EndsWith("_replaced",StringComparison.Ordinal)?name+"_replaced":name;
+    }
     private static readonly string Preference=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"BEMANIResourceManager","language.txt");
     public static string Code { get; private set; }=InitialLanguage();
     public static bool English=>Code.StartsWith("en",StringComparison.OrdinalIgnoreCase);
@@ -65,7 +71,7 @@ public static class I18n
             if(text.Contains('\n'))result=string.Join("\n",text.Split('\n').Select(Translate));
             else {
                 int colon=text.IndexOf('：');
-                if(colon>=0&&Values.TryGetValue(text[..colon].Trim(),out string? label))result=new string(' ',text.TakeWhile(c=>c==' ').Count())+label+": "+text[(colon+1)..];
+                if(colon>=0&&Values.TryGetValue(text[..colon].Trim(),out string? label))result=new string(' ',text.TakeWhile(c=>c==' ').Count())+label+": "+Translate(text[(colon+1)..]);
             }
         }
         lock(Cache){if(Cache.Count>=4096)Cache.Clear();Cache[text]=result;}return Remember(result,text);

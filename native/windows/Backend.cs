@@ -128,7 +128,7 @@ public sealed record PackageInfo(string Path, List<AssetItem> Assets, List<Anima
     bool Modified = false, int Change_count = 0, bool Can_undo = false, string? Selected_asset = null, string? Edit_notice = null, EngineInfo? Engine = null, string? Format = null, bool Song_preview = false,
     string? Song_title = null, string? Song_artist = null)
 {
-    public string DisplayTitle => string.Join(" · ",new[] {System.IO.Path.GetFileName(Path),Song_title,Song_artist}.Where(s=>!string.IsNullOrWhiteSpace(s)));
+    public string DisplayTitle { get { string title=string.Join(" · ",new[] {System.IO.Path.GetFileName(Path),Song_title,Song_artist}.Where(s=>!string.IsNullOrWhiteSpace(s)));return Modified?I18n.ExportName(title,"resource",true):title; } }
 }
 public sealed record GameLibraryInfo(string Path, string Architecture, string? Version);
 public sealed record EngineInfo(string Family, GameLibraryInfo? Library)

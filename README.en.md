@@ -2,20 +2,21 @@
 
 **1.0.0 Beta** · [简体中文](README.md) · [GPL-3.0](LICENSE)
 
+**This project was ENTIRELY made by Codex**
+
 An unofficial desktop browser and editor for local BEMANI resources.
 SwiftUI on macOS and WinUI 3 on Windows share a Python parsing core.
 
 Features include legacy BIN/IDX/GCZ and IFS animation previews, audio and
 BGA playback, song/composer search, complete-song previews, WAV/original
-audio/MP4 export, per-material visibility, picking, replacement and undo.
+audio/MP4/GIF export, per-material visibility, picking, replacement and undo.
 Original game files are protected from overwrite.
 
-BOSS layers offer **Clear** (default) and **Failed** outcomes with identical
-perfect-great chart playback before the ending. Military Stage hosts include
-health overlays; Rche-style hosts have judgement effects without health bars.
-Modern packages without HP artwork use a generated host overlay rather than
-a pixel-exact recreation. Not every damage formula, 3D effect, filter or
-script is implemented.
+19th CN encrypted 2DX banks and charts support unpacking, playback and
+copy-based replacement. Full-song previews have an All button for BGA and
+Layer. Generated export names are English; replacement copies use `_replaced`.
+GIF exports preserve transparency at 50 FPS without audio.
+See [Layer playback](docs/LAYER_PLAYBACK.md) for judgement modes and version differences.
 
 The interface supports Chinese and English, CPU/GPU rendering, 60/120 FPS,
 and selectable resolution/aspect ratio. Optional Live2D/MOC3 editing and

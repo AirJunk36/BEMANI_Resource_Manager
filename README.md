@@ -4,6 +4,8 @@
 
 [English](README.en.md) · [GPL-3.0](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
 
+**本项目完全由Codex制作**
+
 浏览、预览和编辑本地 BEMANI 游戏素材的非官方桌面工具。
 macOS 使用 SwiftUI，Windows 使用 WinUI 3，共用 Python 解析核心。
 
@@ -12,16 +14,16 @@ macOS 使用 SwiftUI，Windows 使用 WinUI 3，共用 Python 解析核心。
 - IIDX 旧版 BIN/IDX/GCZ 和新版 IFS 的图像、动画读取与预览。
 - SD9、2DX、S3P、S3V、SSP 等音频读取，以及 BGA 视频预览。
 - 按曲名、作曲家、编号或路径搜索，显示曲名与作曲家。
-- 完整乐曲试听，选择 BGA、Layer，导出 WAV、原编码音轨或 MP4。
-- Layer 跟随谱面；BOSS 提供默认 **Clear** 和 **Failed** 两种结局，演奏过程均模拟全 PG。
-- ICARUS 等 Military Stage 显示宿主血条；Rche 的 Todestrieb、entelecheia 及同类只播放判定特效，不添加血条。
-- 素材显隐、预览点击选中、替换、撤销和另存；原始游戏文件不被覆盖。
+- 完整乐曲试听，选择 BGA、Layer，导出 WAV、原编码音轨、MP4 或 GIF。
+- 19th 中国版 AES 2DX 与配套谱面读取、试听、解包及副本替换。
+- 完整乐曲预览支持一键选择 BGA / Layer。
+- 素材显隐、预览点击选中、替换、撤销和另存；替换副本使用 `_replaced` 标题，生成的导出名称使用英文。原始游戏文件不被覆盖。
 - CPU / GPU 渲染，60 / 120 FPS，多种分辨率、比例和中英文界面。
 - 可选 Live2D/MOC3 字段、贴图、网格和变形器编辑，以及实时预览集成。运行库及分发条件见 [Live2D 说明](docs/LIVE2D.md)。
 
 不同版本及特殊脚本的兼容性仍在完善。三维、滤镜及特定游戏宿主效果可能不完整。
-新版 Military AFP 缺少旧版 HP 贴图时，血条使用项目生成的宿主绘制，不声称逐像素复现游戏 UI。
-血量按 PG 进度模拟，尚未完整还原所有 BOSS 的实际伤害、难度及最大血量公式。
+Layer 判定、结尾及版本差异见 [Layer 播放说明](docs/LAYER_PLAYBACK.md)。
+GIF 保留透明背景，使用 50 FPS，不包含音频。
 
 ## 从源码运行
 

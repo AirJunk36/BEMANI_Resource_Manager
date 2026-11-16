@@ -1,14 +1,21 @@
 """Exports always target new files; existing files and game paths are refused."""
 from pathlib import Path
 import re
+import unicodedata
 
 from PIL import Image
 
 
-def safe_name(value):
+def safe_name(value, replaced=False):
+    # File IDs stay intact; Unicode-only labels get a stable English fallback.
+    path=Path(value);stem=unicodedata.normalize('NFKD',path.stem).encode('ascii','ignore').decode().strip('. _')
+    value=(stem or 'asset')+unicodedata.normalize('NFKD',path.suffix).encode('ascii','ignore').decode()
     value = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value).strip(". ")
     if not value or value.split(".")[0].upper() in {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}:
         value = "asset_" + value
+    if replaced:
+        path=Path(value)
+        if not path.stem.endswith('_replaced'):value=path.stem+'_replaced'+path.suffix
     return value[:180]
 
 
@@ -27,7 +34,7 @@ def write_new(path, data):
         f.write(data)
 
 
-def original_audio(asset, *, probe=False):
+def original_audio(asset, *, probe=False, replaced=False):
     """Export the encoded media, never the PCM file created for preview."""
     from .resources import AUDIO_EXT, media_suffix, unwrap_media
     if asset.kind != "音频":
@@ -52,7 +59,7 @@ def original_audio(asset, *, probe=False):
     suffix = media_suffix(data, Path(asset.name).suffix.lower())
     if suffix not in AUDIO_EXT - {".s3v", ".sd9", ".2dx", ".s3p", ".ssp"}:
         raise ValueError("无法识别原音频格式")
-    return safe_name(Path(asset.name).stem) + suffix, data
+    return safe_name(Path(asset.name).stem,replaced=replaced) + suffix, data
 
 
 def export_animation(renderer, target, webp, cancelled=lambda: False, progress=lambda n, t: None):

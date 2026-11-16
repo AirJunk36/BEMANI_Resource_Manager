@@ -47,7 +47,7 @@ class HostStateTests(unittest.TestCase):
             self.assertEqual(p.animations[r.cue_at(181)[1]].name,'boss_destroyed')
         finally:r.close()
 
-    def test_boss_pg_chords_trigger_damage_and_outcomes_only_change_the_ending(self):
+    def test_boss_clear_uses_pg_and_failed_uses_poor_for_the_entire_chart(self):
         from iidxviewer.song import judgement_timing
         p,a=fixture(timeline([[place(2)],[],[],[]]))
         names=['boss_in','boss_neutral01','boss_neutral02','boss_neutral03','boss_neutral04','boss_attack01','boss_attack02','boss_attack03','boss_damage','boss_destroyed','boss_escape','enemy_hp']
@@ -57,12 +57,16 @@ class HostStateTests(unittest.TestCase):
         self.assertEqual(len(notes),50);self.assertEqual(end,3)
         renderers=[GameLayerRenderer(p,{},notes,'cpu',measures,state,end_time=end) for state in ['clear','failed']]
         try:
+            self.assertEqual(p.animations[renderers[0].cue_at(12)[1]].name,'boss_damage')
             for r in renderers:
-                self.assertEqual(p.animations[r.cue_at(12)[1]].name,'boss_damage')
                 self.assertEqual(r.cue_at(12)[2],0)
-                self.assertEqual(r.gauge_at(12),0)
                 self.assertEqual(r.cue_at(12),r.cue_at(12))
-            self.assertEqual(renderers[0].cues,renderers[1].cues)
+            self.assertTrue(p.animations[renderers[1].cue_at(12)[1]].name.startswith('boss_attack'))
+            self.assertNotEqual(renderers[0].cues,renderers[1].cues)
+            self.assertEqual(renderers[0].gauge_at(12),0)
+            self.assertEqual(renderers[1].gauge_at(12),100)
+            self.assertEqual(renderers[1].gauge_at(180),100)
+            self.assertFalse(any(p.animations[index].name=='boss_damage' for _,_,index in renderers[1].cues))
             self.assertEqual(p.animations[renderers[0].cue_at(180)[1]].name,'boss_destroyed')
             self.assertEqual(p.animations[renderers[1].cue_at(180)[1]].name,'boss_escape')
             self.assertEqual(renderers[0].cue_at(180)[2],0)
@@ -85,12 +89,21 @@ class HostStateTests(unittest.TestCase):
                     self.assertIn('HP_GAUGE',[d.texture for d in draws]);self.assertIn('HP_WAKU',[d.texture for d in draws])
                     renderer.scene.gauge=50;half=renderer.scene.draws(60)
                     gauge=next(d for d in half if d.texture=='HP_GAUGE')
-                    self.assertAlmostEqual(gauge.matrix[0],.5)
-                else:self.assertTrue(any(d.layer=='root/host-hp' for d in draws))
+                    full=next(d for d in draws if d.texture=='HP_GAUGE')
+                    self.assertAlmostEqual(gauge.matrix[0]/full.matrix[0],.5)
+                    frame=next(d for d in half if d.texture=='HP_WAKU')
+                    self.assertAlmostEqual(frame.matrix[0]*292,640*.98)
+                    self.assertAlmostEqual(frame.matrix[4],640*.01)
+                else:
+                    self.assertFalse(any(d.layer=='root/host-hp' for d in draws))
+                    self.assertFalse(profile(p)['miss'])
                 from iidxviewer.layers import LayerControls
-                controls=LayerControls(p,renderer.animation);controls.set_visible('root/host-hp',False);renderer.scene.controls=controls
-                self.assertFalse(any(d.layer=='root/host-hp' for d in renderer.scene.draws(60)))
-                controls.set_visible('root/host-hp',True)
+                controls=LayerControls(p,renderer.animation);controls.load();renderer.scene.controls=controls
+                if relative.startswith('16_'):
+                    controls.set_visible('root/host-hp',False)
+                    self.assertFalse(any(d.layer=='root/host-hp' for d in renderer.scene.draws(60)))
+                    controls.set_visible('root/host-hp',True)
+                else:self.assertNotIn('root/host-hp',controls.rows)
                 image=renderer.render(60);self.assertFalse(image.isNull());tested+=1
             finally:renderer.close();p.close()
             self.assertEqual(before,hashlib.sha256(path.read_bytes()).digest())
@@ -118,12 +131,17 @@ class HostStateTests(unittest.TestCase):
                 self.assertFalse(host['gauge'])
                 self.assertEqual([x['name'] for x in state_choices(p)],['Clear','Failed'])
                 results=[]
+                from iidxviewer.song_layers import root_frames
+                intro=p.animations[host['intro'][0]];note_time=root_frames(intro)/intro.movie.fps+1;end=note_time+2
                 for state in ['clear','failed']:
-                    r=GameLayerRenderer(p,{},[10]*21,'cpu',state=state,end_time=12)
+                    r=GameLayerRenderer(p,{},[note_time]*21,'cpu',state=state,end_time=end)
                     try:
-                        self.assertEqual(r.cue_at(720)[1],host[state][0]);results.append(r.cues)
+                        self.assertEqual(r.cue_at(round(end*60))[1],host[state][0]);results.append(r.cues)
                     finally:r.close()
-                self.assertEqual(*results);tested+=1
+                self.assertNotEqual(*results)
+                self.assertTrue(any(index in host['miss'] for _,_,index in results[1]))
+                self.assertFalse(any(index in host['hit'] for _,_,index in results[1]))
+                tested+=1
             finally:p.close()
         if not tested:self.skipTest('No named BOSS fixture')
 

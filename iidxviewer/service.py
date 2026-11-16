@@ -84,7 +84,7 @@ class ResourceService:
         key = ('video',audio['path'],json.dumps(options,sort_keys=True),tuple(stamps))
         if key not in self.song_previews:
             notes = measures = ()
-            if options.get('layer_path') and options.get('layer_animation') == -2:
+            if options.get('layer_path'):
                 from .song import source, judgement_timing
                 context = request.get('context_path') or self.original_path
                 _, _, data = source(self.package,context,request.get('bank'),request.get('chart_path'))
@@ -241,11 +241,14 @@ class ResourceService:
         return {"id": i, "name": a.name, "kind": a.kind, "size": a.size or len(a.payload or b""), "details": a.details,
                 "replaceable": a.edit_target is not None}
 
-    def info(self):
-        p = self.package
+    @property
+    def change_count(self):
         session = self.editor.session(self.original_path)
-        changes = len(session.steps) if session else 0
-        if p.format=='live2d':changes=len(p.archive.history)
+        if self.package.format=='live2d':return len(self.package.archive.history)
+        return len(session.steps) if session else 0
+
+    def info(self):
+        p = self.package;changes=self.change_count
         song_preview = False
         if p.format != 'live2d':
             from .song import source, charts
@@ -262,9 +265,9 @@ class ResourceService:
 
     def open(self, path):
         path = Path(path).resolve()
+        package = open_package(self.editor.path(path))
         if not path.is_relative_to(self.cache.resolve()):
             self.protected_roots.add(path.parent)
-        package = open_package(self.editor.path(path))
         self.engine = detect(path, package.format)
         if package.format=='live2d':self.engine=dict(family='Live2D',library=None)
         self.original_path = path
@@ -546,11 +549,11 @@ class ResourceService:
                 if not target.exists():doc.save(target)
                 source=target/doc.path.name
                 pose=[dict(index=i,value=doc.values[name]) for i,name in enumerate(doc.parameter_ids) if name in doc.values]
-            return dict(path=str(source),context_path=str(self.original_path),live2d_pose=pose,
+            return dict(path=str(source),context_path=str(self.original_path),live2d_pose=pose,modified=self.change_count>0,
                         protected_roots=[str(p) for p in self.protected_roots],
                         hidden_layers=sorted(self.controls(int(request['animation'])).hidden) if 'animation' in request else [])
         if method == 'audio_export_info':
-            name, _ = original_audio(self.package.assets[int(request['asset'])], probe=True)
+            name, _ = original_audio(self.package.assets[int(request['asset'])], probe=True,replaced=self.change_count>0)
             return dict(name=name)
         if method == 'prepare_song':
             return self.prepare_song(request)
@@ -562,11 +565,13 @@ class ResourceService:
             prepared = self.prepare_song(request)
             publish(prepared['path'],target)
             return dict(prepared,path=str(target))
-        if method == 'export_song_movie':
+        if method in {'export_song_movie','export_song_gif'}:
             target = self.destination(request['target'])
-            from .media_export import publish
+            from .media_export import publish, gif_from_video
             prepared = self.prepare_song_movie(request)
-            publish(prepared['path'],target)
+            if method=='export_song_gif':
+                gif_from_video(prepared['path'],target,self.cache,request.get('options',{}).get('resolution','720p'))
+            else:publish(prepared['path'],target)
             return dict(prepared,path=str(target))
         if method == "replace":
             return self.replace(request)
@@ -587,8 +592,8 @@ class ResourceService:
             elif kind == "audio_original":
                 _, data = original_audio(self.package.assets[int(request["asset"])])
                 write_new(target, data)
-            elif kind == 'mp4':
-                from .media_export import animation_mp4, video_mp4
+            elif kind in {'mp4','gif'}:
+                from .media_export import animation_mp4, video_mp4, animation_gif, video_gif
                 if 'animation' in request:
                     index = int(request['animation'])
                     if request.get('hidden_layers'):
@@ -596,13 +601,14 @@ class ResourceService:
                         control.hidden.update(k for k in request['hidden_layers'] if k in control.rows)
                     drawing = self.new_renderer(self.package.animations[index],request.get('renderer','gpu'))
                     try:
-                        animation_mp4(drawing,target,self.cache,int(request.get('fps',60)),request.get('resolution','1080p'))
+                        (animation_gif if kind=='gif' else animation_mp4)(drawing,target,self.cache,int(request.get('fps',60)),request.get('resolution','1080p'))
                     finally:
                         drawing.close()
                 else:
                     asset = self.package.assets[int(request['asset'])]
                     if asset.kind != '视频': raise ValueError('请选择动画或视频素材')
-                    video_mp4(asset,target,self.cache)
+                    if kind=='gif':video_gif(asset,target,self.cache,request.get('resolution','720p'))
+                    else:video_mp4(asset,target,self.cache)
             elif kind == "frame":
                 info = self.render(int(request["animation"]), int(request.get("frame", 0)), True)
                 write_new(target, Path(info["path"]).read_bytes())
@@ -615,7 +621,7 @@ class ResourceService:
             elif kind == "textures":
                 target.mkdir(exist_ok=False)
                 for i, asset in enumerate(a for a in self.package.assets if a.kind == "图片"):
-                    write_new(target / f"{i + 1:05}_{safe_name(Path(asset.name).name)}", asset.read())
+                    write_new(target / f"{i + 1:05}_{safe_name(Path(asset.name).name,replaced=self.change_count>0)}", asset.read())
             elif kind == "audio":
                 for parent in list(self.package.assets):
                     if parent.kind == "音频包":
@@ -626,7 +632,7 @@ class ResourceService:
                 target.mkdir(exist_ok=False)
                 used = set()
                 for i, asset in enumerate(tracks):
-                    name, data = original_audio(asset)
+                    name, data = original_audio(asset,replaced=self.change_count>0)
                     while name.casefold() in used:
                         name = f"{i + 1:05}_{name}"
                     used.add(name.casefold())

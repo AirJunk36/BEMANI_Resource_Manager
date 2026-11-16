@@ -139,7 +139,7 @@ final class LiveEditorState: ObservableObject {
         }
     }
     func save() {
-        let panel = NSSavePanel(); panel.title = tr("导出模型"); panel.nameFieldStringValue = URL(fileURLWithPath: source).deletingPathExtension().deletingPathExtension().lastPathComponent + "-edited"
+        let panel = NSSavePanel(); panel.title = tr("导出模型"); panel.nameFieldStringValue = exportName(URL(fileURLWithPath: source).deletingPathExtension().deletingPathExtension().lastPathComponent,fallback:"model",replaced:true)
         panel.canCreateDirectories = true
         if panel.runModal() == .OK, let url = panel.url {
             Task {

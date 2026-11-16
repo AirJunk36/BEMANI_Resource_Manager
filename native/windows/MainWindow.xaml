@@ -78,6 +78,7 @@
        <MenuFlyoutItem Text="当前帧 PNG" Tag="frame" Click="Export_Click"/>
        <MenuFlyoutItem Text="动画 WebP" Tag="webp" Click="Export_Click"/>
        <MenuFlyoutItem x:Name="MP4ExportMenuItem" Text="动画 / 视频 MP4…" Click="ExportMP4_Click" IsEnabled="False"/>
+       <MenuFlyoutItem x:Name="GIFExportMenuItem" Text="导出 GIF…" Click="ExportGIF_Click" IsEnabled="False"/>
        <MenuFlyoutItem Text="PNG 序列" Tag="sequence" Click="Export_Click"/>
        <MenuFlyoutSeparator/>
        <MenuFlyoutItem Text="当前素材" Tag="asset" Click="Export_Click"/>
@@ -120,7 +121,7 @@
       <TextBlock x:Name="EmptyTitle" Text="打开目录或文件" FontSize="20" HorizontalAlignment="Center"/>
       <TextBlock Text="动画 · 图像 · 音频 · BGA" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
      </StackPanel>
-     <ScrollViewer x:Name="SongPreviewHost" Visibility="Collapsed" Padding="14" VerticalScrollBarVisibility="Auto" SizeChanged="SongPreview_SizeChanged"/>
+     <ContentControl x:Name="SongPreviewHost" Visibility="Collapsed" Padding="14" VerticalContentAlignment="Stretch" HorizontalContentAlignment="Stretch"/>
      <ProgressRing x:Name="BusyRing" IsActive="False" Width="56" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center"/>
     </Grid>
     <Border x:Name="Notice" Grid.Row="2" Padding="10" Background="{ThemeResource InfoBarWarningSeverityBackgroundBrush}" CornerRadius="6" Visibility="Collapsed">

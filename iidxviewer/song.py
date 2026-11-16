@@ -19,6 +19,22 @@ CHART_NAMES = {0: 'SP HYPER', 1: 'SP NORMAL', 2: 'SP ANOTHER', 3: 'SP BEGINNER',
 BANK_EXTENSIONS={'.2dx','.s3p'}
 
 
+def decode_chart(data, name):
+    """19 CN charts use the same filename AES envelope as their sound banks."""
+    try:
+        charts(data)
+    except ValueError:
+        if 112 <= len(data) <= 32 * 1024 * 1024:
+            from .legacy_codecs import decrypt_cbc_cts
+            try:
+                plain = decrypt_cbc_cts(data, PurePosixPath(name).name)
+                charts(plain)
+                return plain
+            except (ValueError, UnicodeEncodeError):
+                pass
+    return data
+
+
 def banks(package):
     if package.path.suffix.lower() in BANK_EXTENSIONS:
         return [dict(id='package', name=package.path.name)]
@@ -31,20 +47,21 @@ def chart_bytes(package, original, bank, external=None):
         path = Path(external)
         if path.suffix.lower() != '.1' or path.stat().st_size > 32 * 1024 * 1024:
             raise ValueError('请选择配套的 .1 谱面')
-        return path.read_bytes()
+        return decode_chart(path.read_bytes(), path.name)
     name = PurePosixPath(bank['name'])
     internal = [a for a in package.assets if a.name.lower().endswith('.1')
                 and PurePosixPath(a.name).parent == name.parent]
     exact = next((a for a in internal if PurePosixPath(a.name).stem == name.stem), None)
     if exact or len(internal) == 1:
-        return (exact or internal[0]).read()
+        asset = exact or internal[0]
+        return decode_chart(asset.read(), asset.name)
     original = Path(original)
     exact = original.with_suffix('.1')
     if exact.is_file():
-        return exact.read_bytes()
+        return decode_chart(exact.read_bytes(), exact.name)
     siblings = list(original.parent.glob('*.1'))
     if len(siblings) == 1:
-        return siblings[0].read_bytes()
+        return decode_chart(siblings[0].read_bytes(), siblings[0].name)
     return None
 
 

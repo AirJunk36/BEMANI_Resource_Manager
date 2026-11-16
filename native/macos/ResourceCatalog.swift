@@ -114,20 +114,32 @@ struct ResourceCatalogTable: NSViewRepresentable {
     }
     func updateNSView(_ view: NSScrollView, context: Context) {
         guard let table = view.documentView as? NSTableView else { return }
-        let coordinator = context.coordinator; coordinator.selection = $selection; coordinator.updating = true
-        defer { coordinator.updating = false }
-        if coordinator.snapshot !== snapshot {
-            coordinator.snapshot = snapshot; table.reloadData()
-        }
-        let row = selection.flatMap { snapshot.indexesByPath[$0] }
-        if let row { if table.selectedRow != row { table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false) } }
-        else if table.selectedRow >= 0 { table.deselectAll(nil) }
+        let coordinator = context.coordinator; coordinator.selection = $selection
+        coordinator.schedule(snapshot, selected:selection, language:AppLanguage.shared.code, table:table)
     }
     final class Coordinator: NSObject, NSTableViewDataSource, NSTableViewDelegate {
         var snapshot = CatalogSnapshot([])
         var selection: Binding<String?>
         var updating = false
+        private var scheduled = false
+        private var pending: (CatalogSnapshot,String?,String)?
+        private var language = ""
         init(selection: Binding<String?>) { self.selection = selection }
+        func schedule(_ snapshot: CatalogSnapshot, selected: String?, language: String, table: NSTableView) {
+            pending=(snapshot,selected,language)
+            guard !scheduled else { return };scheduled=true
+            DispatchQueue.main.async { [weak self,weak table] in
+                guard let self else { return };self.scheduled=false
+                guard let table,let (snapshot,selected,language)=self.pending else { return }
+                self.pending=nil;self.updating=true;defer { self.updating=false }
+                if self.snapshot !== snapshot || self.language != language {
+                    self.snapshot=snapshot;self.language=language;table.reloadData()
+                }
+                if let row=selected.flatMap({snapshot.indexesByPath[$0]}) {
+                    if table.selectedRow != row { table.selectRowIndexes(IndexSet(integer:row),byExtendingSelection:false) }
+                } else if table.selectedRow>=0 { table.deselectAll(nil) }
+            }
+        }
         func numberOfRows(in tableView: NSTableView) -> Int { snapshot.files.count }
         func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
             let identifier = NSUserInterfaceItemIdentifier("resourceCell")

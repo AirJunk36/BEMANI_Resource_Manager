@@ -286,7 +286,7 @@ class ReplacementTests(unittest.TestCase):
         self.assertEqual(digest(source), before)
 
     def test_whole_file_replacement_and_report_name_collision(self):
-        source = self.sources / "替换记录.json"
+        source = self.sources / "replacements.json"
         source.write_bytes(b'{"original":true}')
         new = self.folder / "new.json"
         new.write_bytes(b'{"replacement":true}')
@@ -295,7 +295,7 @@ class ReplacementTests(unittest.TestCase):
         self.replace(new, whole=True)
         output = self.save()
         self.assertEqual(Path(output["primary"]).read_bytes(), new.read_bytes())
-        self.assertTrue((Path(output["path"]) / "替换记录_2.json").exists())
+        self.assertTrue((Path(output["path"]) / "replacements_2.json").exists())
         self.assertEqual(digest(source), before)
 
     def test_ifs_super_references_are_localized_and_whole_package_replacement(self):

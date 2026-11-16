@@ -21,6 +21,17 @@ public sealed partial class MainWindow
         if(PreviewTitle.Text!="Full song preview"||contents.First(c=>c.Type=="song").DisplayName!="Full song preview"||localizedPane.StatusText!="Ready")throw new Exception("Full song preview was not localized");
         if(!ReferenceEquals(localizedPane,songPreviewPane)||!ReferenceEquals(localizedSource,localizedPane.Player.Source))throw new Exception("Language change restarted song preview");
         Root.UpdateLayout();string songEnglish=System.IO.Path.Combine(testRoot,"song-preview-en.png");File.WriteAllBytes(songEnglish,Array.Empty<byte>());await CapturePreview(songEnglish);
+        var stateVisibility=localizedPane.LayerStates.Visibility;var gaugeVisibility=localizedPane.LayerGauge.Visibility;
+        localizedPane.LayerStates.Visibility=localizedPane.LayerGauge.Visibility=Visibility.Visible;
+        foreach(double height in new[]{220.0,260.0,380.0}) {
+            SongPreviewHost.Height=height;Root.UpdateLayout();
+            var bar=localizedPane.CommandsPanel;
+            var bounds=bar.TransformToVisual(SongPreviewHost).TransformBounds(new Windows.Foundation.Rect(0,0,bar.ActualWidth,bar.ActualHeight));
+            if(bar.ActualHeight<25 || bounds.Bottom>SongPreviewHost.ActualHeight-10 || bounds.Top<0)throw new Exception("Song preview footer clipped at "+height);
+            var videoBounds=localizedPane.PlayerPanel.TransformToVisual(SongPreviewHost).TransformBounds(new Windows.Foundation.Rect(0,0,localizedPane.PlayerPanel.ActualWidth,localizedPane.PlayerPanel.ActualHeight));
+            if(videoBounds.Bottom>bounds.Top-8)throw new Exception("Video covers the preview footer at "+height);
+        }
+        SongPreviewHost.Height=double.NaN;localizedPane.LayerStates.Visibility=stateVisibility;localizedPane.LayerGauge.Visibility=gaugeVisibility;Root.UpdateLayout();
         I18n.SetLanguage("zh-Hans",false);ApplyLanguage();
         if(PreviewTitle.Text!="完整乐曲预览"||localizedPane.StatusText!="就绪")throw new Exception("Song preview did not restore Chinese");
         if (songPreviewPane!.BGAPlayback.IsChecked == true || songPreviewPane.LayerPlayback.IsChecked == true || !songPreviewPane.HasPreviewUI)
@@ -80,6 +91,9 @@ public sealed partial class MainWindow
             using var native = new Windows.Media.Playback.MediaPlayer();
             native.Source = Windows.Media.Core.MediaSource.CreateFromUri(new Uri(target));
             await AwaitState(() => native.PlaybackSession.NaturalDuration.TotalSeconds > 0,"native animation MP4");
+            string gif=System.IO.Path.ChangeExtension(target,".gif");
+            _ = await worker.Request<ExportReply>("export",new(){["kind"]="gif",["animation"]=animation.Id,["target"]=gif,["resolution"]="480p"});
+            if(!File.ReadAllBytes(gif).AsSpan(0,6).SequenceEqual("GIF89a"u8))throw new Exception("Animation GIF export failed");
             await Render(3); if (frame != 3) throw new Exception("Media worker affected interactive renderer");
         }
         await Open(System.IO.Path.Combine(game,"movie","19po.mp4"));
@@ -131,7 +145,7 @@ public sealed partial class MainWindow
             // MediaPlayerElement uses a separate composition surface. Capture its
             // settings, while native playback is verified above through MediaPlayer.
             var image = System.IO.Path.Combine(testRoot,"song-studio.png"); File.WriteAllBytes(image,Array.Empty<byte>()); await CapturePreview(image,pane.SettingsPanel);
-            return new() { ["title_search_audio_bga_layer"] = true, ["generic_bga_reverse_lookup"] = true,
+            return new() { ["preview_footer_layout"] = true, ["title_search_audio_bga_layer"] = true, ["generic_bga_reverse_lookup"] = true,
                 ["native_song_movie_preview"] = true, ["song_mp4_and_wav_export"] = true,
                 ["native_animation_mp4_export"] = true, ["interactive_preview_preserved"] = true,
                 ["audio_preview_and_export_independent"] = true, ["manual_bga_layer_paths"] = true,

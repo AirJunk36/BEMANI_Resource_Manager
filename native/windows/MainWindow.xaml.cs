@@ -120,7 +120,8 @@ public sealed partial class MainWindow : Window
         } finally { localizing=false; }
     }
     private void RefreshPreviewLabel() {
-        if(previewKind=="song")PreviewTitle.Text=Tr("完整乐曲预览");
+        if(package?.Modified==true)PreviewTitle.Text=ExportName((ContentsList.SelectedItem as ContentItem)?.Name??"asset",replaced:true);
+        else if(previewKind=="song")PreviewTitle.Text=Tr("完整乐曲预览");
         else if(package is null)PreviewTitle.Text=Tr("选择素材");
         if(package is null)PackageTitle.Text=Tr("包内素材");
     }
@@ -170,6 +171,7 @@ public sealed partial class MainWindow : Window
         SongExportMenuItem.IsEnabled = !working && package is not null && package.Format!="live2d" &&
             (package.Path.EndsWith(".2dx", StringComparison.OrdinalIgnoreCase) || package.Assets.Any(a => a.Kind is "音频" or "音频包" or "视频") || package.Animations.Count > 0);
         MP4ExportMenuItem.IsEnabled = !working && (animation is not null || asset?.Kind == "视频");
+        GIFExportMenuItem.IsEnabled = MP4ExportMenuItem.IsEnabled;
         DraftIndicator.Text = Tr(package?.Modified == true ? $"副本 · {package.Change_count} 次修改" : "");
         DraftIndicator.Visibility = package?.Modified == true ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -293,14 +295,14 @@ public sealed partial class MainWindow : Window
             if (!collapsedCategories.Add(item.Group)) collapsedCategories.Remove(item.Group);
             FilterContents(); return;
         }
-        ResetPreview(); int token = generation; PreviewTitle.Text = item.Type=="song" ? Tr(item.Name) : item.Name;
+        ResetPreview(); int token = generation; PreviewTitle.Text = package.Modified?ExportName(item.Name,replaced:true):item.Type=="song" ? Tr(item.Name) : item.Name;
         if (item.Type == "song") {
             try {
             previewKind = "song"; PreviewDetail.Text = Tr(""); EmptyState.Visibility = Visibility.Collapsed; MainPlaybackControls.Visibility = Visibility.Collapsed;
             var context = await Request<ExportContext>("export_context");
             if (token != generation) return;
             var pane = new SongStudioPane(home,context,RenderMode,InitializePicker,_ => {},previewOnly:true);
-            songPreviewPane = pane; SongPreviewHost.Content = Tr(pane); SongPreviewHost.Visibility = Visibility.Visible; pane.PreviewHeight(SongPreviewHost.ActualHeight);
+            songPreviewPane = pane; SongPreviewHost.Content = Tr(pane); SongPreviewHost.Visibility = Visibility.Visible;
             await pane.OpenPreview(); UpdateEditing();
             } catch (Exception ex) { if (token == generation) ShowError(ex); }
             return;
@@ -467,7 +469,6 @@ public sealed partial class MainWindow : Window
         Pause(); await Render(Math.Clamp(frame + delta, 0, animation.Length - 1));
     }
     private void Play_Click(object sender, RoutedEventArgs e) => TogglePlay();
-    private void SongPreview_SizeChanged(object sender, SizeChangedEventArgs e) => songPreviewPane?.PreviewHeight(e.NewSize.Height);
     private void Previous_Click(object sender, RoutedEventArgs e) => Step(-1);
     private void Next_Click(object sender, RoutedEventArgs e) => Step(1);
     private async void Timeline_Changed(object sender, RangeBaseValueChangedEventArgs e)
@@ -541,9 +542,9 @@ public sealed partial class MainWindow : Window
         var folder = await folderPicker.PickSingleFolderAsync(); if (folder is null) return;
         if (token != generation) return;
         string name = kind is "textures" or "audio" ? System.IO.Path.GetFileNameWithoutExtension(package.Path) + "_" + kind : PreviewTitle.Text;
-        name = string.Join("_", name.Split(System.IO.Path.GetInvalidFileNameChars()));
+        name = ExportName(name,replaced:package.Modified);
         name += kind switch { "frame" => $"_{frame:000000}.png", "webp" => ".webp", "sequence" => "_frames", _ => "" };
-        if (kind == "asset") name = System.IO.Path.GetFileName(selectedAsset!.Name);
+        if (kind == "asset") name = ExportName(System.IO.Path.GetFileNameWithoutExtension(selectedAsset!.Name),replaced:package.Modified)+System.IO.Path.GetExtension(selectedAsset.Name);
         string target = System.IO.Path.Combine(folder.Path, name);
         Busy(true, "正在导出…");
         try {
@@ -597,7 +598,7 @@ public sealed partial class MainWindow : Window
         Pause();
         var picker = new FolderPicker(); picker.FileTypeFilter.Add("*"); InitializePicker(picker);
         var parent = await picker.PickSingleFolderAsync(); if (parent is null) return;
-        string name = System.IO.Path.GetFileNameWithoutExtension(package.Path) + "_替换_" + DateTime.Now.ToString("yyyyMMdd_HHmmss");
+        string name = ExportName(System.IO.Path.GetFileNameWithoutExtension(package.Path),"resource",true);
         string target = System.IO.Path.Combine(parent.Path, name);
         for (int i = 2; Directory.Exists(target) || File.Exists(target); i++) target = System.IO.Path.Combine(parent.Path, name + "_" + i);
         Busy(true, "正在保存…");

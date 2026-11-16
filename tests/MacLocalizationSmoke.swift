@@ -13,10 +13,19 @@ struct MacLocalizationSmoke {
               tr("播放失败：请选择有效谱面")=="Playback failed: Choose a valid chart",
               tr("原始：30 帧；预览：60 帧")=="Source: 30 frames; preview: 60 frames",
               tr("ICARUS")=="ICARUS" else { fatalError("English interface lookup/interpolation") }
+        guard tr("2DX 第 17 个音频头无效")=="Invalid audio header for 2DX track 17",
+              tr("播放失败：2DX 加密头被截断")=="Playback failed: Truncated encrypted 2DX header",
+              tr("媒体转换失败：ffmpeg detail\n2DX 音频范围无效")=="Media conversion failed: ffmpeg detail\nInvalid 2DX audio range",
+              tr("全部")=="All",tr("导出 GIF…")=="Export GIF…" else { fatalError("English parser diagnostics or GIF controls") }
         let model=ViewerModel();defer { model.backend?.stop() }
+        guard exportName("日本語",fallback:"song_1",replaced:true)=="song_1_replaced",exportName("title_replaced",replaced:true)=="title_replaced" else { fatalError("English replacement/export names") }
         let game=URL(fileURLWithPath:ProcessInfo.processInfo.environment["IIDX_GAME_ROOT"]!)
         await model.scan(game.appendingPathComponent("33_Sparkle_Shower").path);await model.library.waitForResults()
         guard model.files.count>10000 else { fatalError("Folder loading failed: \(model.status)") }
+        let invalid=FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString+".2dx")
+        try Data(count:96).write(to:invalid);defer { try? FileManager.default.removeItem(at:invalid) }
+        await model.open(invalid.path)
+        guard tr(model.status)=="Unsupported 2DX format or encryption" else { fatalError("Backend error still untranslated: \(model.status)") }
         let file=game.appendingPathComponent("20_tricoro/data/graphic/test_effect_anime.ifs")
         await model.open(file.path);await model.selectItem()
         let originalName=model.title

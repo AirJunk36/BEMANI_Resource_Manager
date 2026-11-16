@@ -13,7 +13,7 @@ public sealed record SongChart(int Id, string Name, string? Bank = null) { publi
 public sealed record SongInfo(List<SongBank> Banks, string Bank, List<SongChart> Charts, bool Needs_chart);
 
 // Owns the native player and one cancellable media worker for this dialog.
-internal sealed class SongStudioPane : StackPanel, IDisposable
+internal sealed class SongStudioPane : Grid, IDisposable
 {
     private readonly string home, renderMode;
     private readonly bool previewOnly;
@@ -39,7 +39,7 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
     private readonly TextBlock status = new() { TextWrapping = TextWrapping.Wrap, FontSize = 12 };
     private readonly ProgressRing ring = new() { Width = 22, Height = 22, IsActive = false };
     private readonly MediaPlayer player = new() { AutoPlay = false };
-    private readonly MediaPlayerElement video = new() { Height = 180, AreTransportControlsEnabled = true, Stretch = Stretch.Uniform };
+    private readonly MediaPlayerElement video = new() { AreTransportControlsEnabled = true, Stretch = Stretch.Uniform };
     private readonly StackPanel settings = new() { Spacing = 10 };
     private readonly StackPanel videoSettings = new() { Spacing = 10, Visibility = Visibility.Collapsed };
     private readonly ComboBox mode = new() { ItemsSource = new[] { "音频", "视频" }, SelectedIndex = 0, Width = 150, HorizontalAlignment = HorizontalAlignment.Right };
@@ -57,6 +57,8 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
     private readonly NumberBox bgaOffset = OffsetBox(), layerOffset = OffsetBox();
     private readonly TextBox bgaName = PathInput("选择或输入 BGA 路径"), layerName = PathInput("选择或输入 Layer 路径");
     private readonly Button previewButton = new() { Content = Tr("试听音频" )}, exportButton = new() { Content = Tr("导出 WAV…" )};
+    private readonly Button gifButton = new() { Content = Tr("导出 GIF…"), Visibility = Visibility.Collapsed };
+    private readonly Button allVisuals = new() { Content = Tr("全部"), IsEnabled = false };
     private readonly Button cancelButton = new() { Content = Tr("取消处理"), Visibility = Visibility.Collapsed };
     public bool IsBusy { get; private set; }
     public string Title { get; private set; } = "乐曲";
@@ -65,6 +67,8 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
     internal ComboBox OutputResolution => resolution;
     internal ComboBox OutputFPS => fps;
     internal FrameworkElement SettingsPanel => settings;
+    internal FrameworkElement CommandsPanel => commands;
+    internal FrameworkElement PlayerPanel => video;
     internal TextBox BGAPathInput => bgaName;
     internal TextBox LayerPathInput => layerName;
     internal ComboBox LayerAnimations => layers;
@@ -105,9 +109,13 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
         this.home = home; this.context = context; this.renderMode = renderMode; this.initializePicker = initializePicker; this.workerChanged = workerChanged;
         Loaded+=(_,_)=>I18n.Apply(this);
         this.audioBackend = audioBackend; this.originalAsset = originalAsset?.Kind == "音频" ? originalAsset : null;
-        songPath = context.Context_path; Spacing = 12; MinWidth = previewOnly ? 0 : 620;
+        songPath = context.Context_path; RowSpacing = 12; MinWidth = previewOnly ? 0 : 620;
+        RowDefinitions.Add(new() { Height = previewOnly ? new GridLength(3,GridUnitType.Star) : GridLength.Auto });
+        RowDefinitions.Add(new() { Height = new GridLength(2,GridUnitType.Star), MaxHeight = previewOnly ? 230 : 315 });
+        RowDefinitions.Add(new() { Height = GridLength.Auto });
+        RowDefinitions.Add(new() { Height = GridLength.Auto });
         video.SetMediaPlayer(player);
-        if (previewOnly) { video.Height = 260; Children.Add(video); player.IsLoopingEnabled = true; }
+        if (previewOnly) { Children.Add(video); player.IsLoopingEnabled = true; }
         else Children.Add(mode);
         player.MediaOpened += (_, _) => DispatcherQueue.TryEnqueue(() => {
             if (!disposed && pendingPosition is TimeSpan position) { player.PlaybackSession.Position = position; pendingPosition = null; }
@@ -120,7 +128,8 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
         if (previewOnly) {
             var loop = new CheckBox { Content = Tr("循环"), IsChecked = true };
             loop.Checked += (_, _) => player.IsLoopingEnabled = true; loop.Unchecked += (_, _) => player.IsLoopingEnabled = false;
-            settings.Children.Add(Row(charts,chooseChart)); settings.Children.Add(Row(bga,layer,loop)); settings.Children.Add(Row(chooseBGA,chooseLayer)); settings.Children.Add(layers);
+            settings.Children.Add(Row(charts,chooseChart)); settings.Children.Add(Row(allVisuals,bga,layer,loop)); settings.Children.Add(Row(chooseBGA,chooseLayer)); settings.Children.Add(layers);
+            allVisuals.Click += async (_,_) => await ToggleAllVisuals();
         } else {
             settings.Children.Add(audioSource); settings.Children.Add(originalLabel); settings.Children.Add(songSettings);
             songSettings.Children.Add(songs); songSettings.Children.Add(chooseSong);
@@ -130,14 +139,17 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
             videoSettings.Children.Add(Row(resolution,fps)); settings.Children.Add(videoSettings);
         }
         settings.Children.Add(Row(layerState,layerGauge));
-        Children.Add(new ScrollViewer { Content = Tr(settings), MaxHeight = previewOnly ? 230 : 315, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
-        Children.Add(status);
+        var scroller = new ScrollViewer { Content = Tr(settings), VerticalScrollBarVisibility = ScrollBarVisibility.Auto };
+        Grid.SetRow(scroller,1);Children.Add(scroller);
+        Grid.SetRow(status,2);Children.Add(status);
         var pause = new Button { Content = Tr("暂停" )};
-        if (previewOnly) { commands.Children.Add(previewButton); commands.Children.Add(pause); } else commands.Children.Add(exportButton);
-        commands.Children.Add(ring); Children.Add(commands);
+        if (previewOnly) { commands.Children.Add(previewButton); commands.Children.Add(pause); } else { commands.Children.Add(gifButton);commands.Children.Add(exportButton); }
+        commands.Children.Add(ring);Grid.SetRow(commands,3);Children.Add(commands);
         if (previewOnly) { commands.Children.Add(cancelButton); cancelButton.Click += (_, _) => Cancel(); }
         previewButton.Click += async (_, _) => { if (player.Source is not null) player.Play(); else await Preview(VideoMode); }; pause.Click += (_, _) => player.Pause();
         exportButton.Click += async (_, _) => await ChooseExport(VideoMode);
+        gifButton.Click += async (_, _) => await ChooseExport(true,true);
+        ToolTipService.SetToolTip(gifButton,Tr("GIF：50 FPS，无音频"));
         mode.SelectionChanged += (_, _) => {
             if (!previewOnly) { player.Pause(); player.Source = null; }
             UpdateAudioMode();
@@ -187,11 +199,10 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
         originalLabel.Visibility = OriginalAudio ? Visibility.Visible : Visibility.Collapsed;
         mode.Visibility = OriginalAudio ? Visibility.Collapsed : Visibility.Visible;
         videoSettings.Visibility = !OriginalAudio && VideoMode ? Visibility.Visible : Visibility.Collapsed;
-        video.Height = previewOnly ? video.Height : !OriginalAudio && VideoMode ? 180 : 90;
         previewButton.Content = Tr("播放");
         exportButton.Content = Tr(OriginalAudio ? "导出原格式…" : VideoMode ? "导出 MP4…" : "导出 WAV…");
+        gifButton.Visibility = !previewOnly && !OriginalAudio && VideoMode ? Visibility.Visible : Visibility.Collapsed;
     }
-    internal void PreviewHeight(double height) { if (previewOnly) video.Height = Math.Max(150,height-300); }
     internal void TogglePlayback() { if (player.PlaybackSession.PlaybackState == MediaPlaybackState.Playing) player.Pause(); else if (player.Source is not null) player.Play(); }
     internal void SeekBy(double seconds) { player.PlaybackSession.Position = TimeSpan.FromSeconds(Math.Max(0,Math.Min(player.PlaybackSession.NaturalDuration.TotalSeconds,player.PlaybackSession.Position.TotalSeconds+seconds))); }
     internal async Task OpenPreview() {
@@ -225,7 +236,7 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
     private void SetBusy(bool value) {
         IsBusy = value; mode.IsEnabled = !value; Enable(settings,!value); layerLoop.IsEnabled = !value && (layers.SelectedItem as LayerChoice)?.Id != -2;
         foreach (var button in commands.Children.OfType<Button>()) button.IsEnabled = !value;
-        if (previewOnly) { bga.IsEnabled = !value && bgaPath.Length > 0; layer.IsEnabled = !value && layerPath.Length > 0; cancelButton.IsEnabled = value; cancelButton.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
+        if (previewOnly) { bga.IsEnabled = !value && bgaPath.Length > 0; layer.IsEnabled = !value && layerPath.Length > 0; allVisuals.IsEnabled = !value && (bgaPath.Length > 0 || layerPath.Length > 0); cancelButton.IsEnabled = value; cancelButton.Visibility = value ? Visibility.Visible : Visibility.Collapsed; }
         ring.IsActive = value; StateChanged?.Invoke();
     }
     private async Task Run(string message, Func<CancellationToken,Task> operation) {
@@ -257,7 +268,7 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
     }
     private async Task OpenSong(BackgroundCore worker, string path, string? workingPath = null) {
         player.Pause(); player.Source = null; await worker.OpenSong(path,workingPath);
-        context = context with { Path = workingPath ?? path, Context_path = path }; songPath = path; chartPath = null; info = null;
+        context = context with { Path = workingPath ?? path, Context_path = path, Modified=workingPath is not null && workingPath!=path }; songPath = path; chartPath = null; info = null;
         updating = true; banks.ItemsSource = null; charts.ItemsSource = null; updating = false;
     }
     public Task Initialize(bool audio) => Run("正在读取音频…",async token => {
@@ -305,13 +316,20 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
         hasLayerGauge=result.Gauge;UpdateStateControls();
     }
     private void UpdateStateControls() {
-        bool automatic=(layers.SelectedItem as LayerChoice)?.Id == -2;
-        layerState.Visibility=automatic && layerState.ItemsSource is List<LayerState> states && states.Count>0 ? Visibility.Visible : Visibility.Collapsed;
-        layerGauge.Visibility=automatic && hasLayerGauge?Visibility.Visible:Visibility.Collapsed;
+        layerState.Visibility=layerState.ItemsSource is List<LayerState> states && states.Count>0 ? Visibility.Visible : Visibility.Collapsed;
+        layerGauge.Visibility=hasLayerGauge?Visibility.Visible:Visibility.Collapsed;
     }
     private void UpdateBGAPath() {
         string path=InputPath(bgaName.Text);if(path==bgaPath)return;
         bgaPath=path;bga.IsChecked=path.Length>0;
+    }
+    internal async Task ToggleAllVisuals() {
+        if(IsBusy)return;
+        bool all=(bgaPath.Length==0 || bga.IsChecked==true) && (layerPath.Length==0 || layer.IsChecked==true);
+        updating=true;
+        bga.IsChecked=!all && bgaPath.Length>0;layer.IsChecked=!all && layerPath.Length>0;
+        updating=false;
+        await RefreshPreview();
     }
     private void UpdateLayerPath() {
         string path=InputPath(layerName.Text);if(path==layerPath)return;
@@ -339,20 +357,20 @@ internal sealed class SongStudioPane : StackPanel, IDisposable
         player.Source = MediaSource.CreateFromUri(new Uri(result.Path)); if (autoplay) player.Play();
         status.Text = Tr(autoplay ? "播放中" : "就绪");
     });
-    public Task Export(string target, bool movie) => Run(movie ? "正在合成 MP4…" : "正在合成歌曲…",async token => {
+    public Task Export(string target, bool movie, bool gif = false) => Run(gif ? "正在导出 GIF…" : movie ? "正在合成 MP4…" : "正在合成歌曲…",async token => {
         if (OriginalAudio && originalAsset is not null && audioBackend is not null) {
             await audioBackend.Request<ExportReply>("export",new() { ["kind"] = "audio_original", ["asset"] = originalAsset.Id, ["target"] = target });
             token.ThrowIfCancellationRequested(); status.Text = Tr("已导出：" + target); return;
         }
         var worker = await Connect(token); var args = Arguments(); if (movie) args["options"] = await VideoOptions(worker); args["target"] = target;
-        await worker.Request<ExportReply>(movie ? "export_song_movie" : "export_song",args); token.ThrowIfCancellationRequested(); status.Text = Tr("已导出：" + target);
+        await worker.Request<ExportReply>(gif ? "export_song_gif" : movie ? "export_song_movie" : "export_song",args); token.ThrowIfCancellationRequested(); status.Text = Tr("已导出：" + target);
     });
-    private async Task ChooseExport(bool movie) {
+    private async Task ChooseExport(bool movie, bool gif = false) {
         var picker = new FolderPicker(); picker.FileTypeFilter.Add("*"); initializePicker(picker);
         var folder = await picker.PickSingleFolderAsync(); if (folder is null) return;
         string chart = (charts.SelectedItem as SongChart)?.Name.Replace(' ','_') ?? "song";
-        string name = OriginalAudio ? originalInfo!.Name : System.IO.Path.GetFileNameWithoutExtension(songPath) + "_" + chart + (movie ? ".mp4" : ".wav");
-        var target = System.IO.Path.Combine(folder.Path,name); await Export(target,movie);
+        string name = OriginalAudio ? originalInfo!.Name : ExportName(System.IO.Path.GetFileNameWithoutExtension(songPath)+"_"+chart,"song",context.Modified) + (gif ? ".gif" : movie ? ".mp4" : ".wav");
+        var target = System.IO.Path.Combine(folder.Path,name); await Export(target,movie,gif);
     }
     public void Dispose() { if (disposed) return; disposed = true; Cancel(); video.SetMediaPlayer(null); player.Source = null; player.Dispose(); }
 }
@@ -367,6 +385,8 @@ public sealed partial class MainWindow
         try {
             var context = await Request<ExportContext>("export_context");
             using var pane = new SongStudioPane(home,context,RenderMode,InitializePicker,worker => mediaJob = worker,backend,asset);
+            void ResizePane(XamlRoot root,XamlRootChangedEventArgs? args=null) => pane.Height=Math.Clamp(root.Size.Height-210,180,560);
+            ResizePane(Root.XamlRoot);Root.XamlRoot.Changed+=ResizePane;
             var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = Tr("音频/视频导出"), Content = Tr(pane), CloseButtonText = Tr("关闭" )};
             dialog.Resources["ContentDialogMaxWidth"] = 760.0;
             pane.StateChanged += () => { dialog.CloseButtonText = Tr(pane.IsBusy ? "取消处理" : "关闭"); };
@@ -376,7 +396,7 @@ public sealed partial class MainWindow
                 var shown = dialog.ShowAsync();
                 bool audio = IsSongBank(package.Path) || package.Assets.Any(a => a.Kind == "音频包" && IsSongBank(a.Name));
                 await pane.Initialize(audio); await shown;
-            } finally { mediaDialogOpen = false; }
+            } finally { Root.XamlRoot.Changed-=ResizePane;mediaDialogOpen = false; }
         } catch (Exception ex) { ShowError(ex); }
     }
 }

@@ -43,7 +43,7 @@ class LayerControls:
                 walk(row['children'], key, level + 1)
         walk(report['layers'], 'root', 1)
         from .afp_hosts import military_actor,motion_clip
-        if military_actor(package) is not None and motion_clip(animation.name):
+        if military_actor(package) is not None and motion_clip(animation.name) and any(a.name.casefold()=='hp' for a in package.animations):
             self.add('root/host-hp','root','HP','宿主血条',1)
         self.loaded = True
 

@@ -365,6 +365,10 @@ public sealed partial class MainWindow
             I18n.SetLanguage("en",false);ApplyLanguage();
             if(Title!="BEMANI Resource Manager"||FileSearch.PlaceholderText!="Search files, paths, songs or composers"||I18n.Tr("副本 · 3 次修改")!="Copy · 3 changes")throw new Exception("English interface translation failed");
             if(I18n.Tr("原音轨")!="Original track"||I18n.Tr("正常")!="Normal")throw new Exception("English media/editor translation failed");
+            if(I18n.Tr("2DX 第 17 个音频头无效")!="Invalid audio header for 2DX track 17" || I18n.Tr("播放失败：2DX 加密头被截断")!="Playback failed: Truncated encrypted 2DX header" || I18n.Tr("媒体转换失败：ffmpeg detail\n2DX 音频范围无效")!="Media conversion failed: ffmpeg detail\nInvalid 2DX audio range")throw new Exception("English parser error translation failed");
+            if(I18n.Tr("全部")!="All" || I18n.Tr("导出 GIF…")!="Export GIF…")throw new Exception("GIF or All control localization failed");
+            checks["english_parser_errors"]=true;
+            if(I18n.ExportName("日本語","song_1",true)!="song_1_replaced" || I18n.ExportName("title_replaced",replaced:true)!="title_replaced")throw new Exception("English replacement/export names failed");
             if(new ContentItem("正常","","animation",0).DisplayName!="正常")throw new Exception("Localization changed an animation name");
             Root.UpdateLayout();
             if(AppHeading.ActualHeight>48||PreviewGrid.ActualHeight<60)throw new Exception("English heading compressed the preview");

@@ -2,6 +2,14 @@ import Foundation
 import AppKit
 import Darwin
 
+func exportName(_ title: String, fallback: String = "asset", replaced: Bool = false) -> String {
+    let folded=englishExportTitle(title).folding(options:.diacriticInsensitive,locale:Locale(identifier:"en_US_POSIX"))
+    var name=String(folded.unicodeScalars.filter { $0.isASCII }).replacingOccurrences(of:#"[^A-Za-z0-9._ -]+"#,with:"_",options:.regularExpression).trimmingCharacters(in:CharacterSet(charactersIn:". _"))
+    if name.isEmpty { name=fallback.unicodeScalars.allSatisfy({$0.isASCII}) ? fallback : "asset" }
+    if replaced && !name.hasSuffix("_replaced") { name+="_replaced" }
+    return name
+}
+
 struct BackendError: LocalizedError {
     let message: String
     var errorDescription: String? { message }
@@ -185,7 +193,8 @@ struct PackageInfo: Decodable {
     var song_title: String? = nil
     var song_artist: String? = nil
     var displayTitle: String {
-        [URL(fileURLWithPath:path).lastPathComponent,song_title ?? "",song_artist ?? ""].filter { !$0.isEmpty }.joined(separator:" · ")
+        let title=[URL(fileURLWithPath:path).lastPathComponent,song_title ?? "",song_artist ?? ""].filter { !$0.isEmpty }.joined(separator:" · ")
+        return modified==true ? exportName(title,fallback:"resource",replaced:true) : title
     }
 }
 

@@ -129,6 +129,35 @@ def animation_mp4(renderer, target, cache, fps=60, resolution='1080p'):
     return dict(path=str(target),seconds=duration)
 
 
+def gif_palette():
+    # One palette per frame keeps memory bounded for long transparent layers.
+    return '[0:v]split[image][colors];[colors]palettegen=stats_mode=single:reserve_transparent=1[palette];[image][palette]paletteuse=new=1:dither=bayer:bayer_scale=3[v]'
+
+
+def animation_gif(renderer, target, cache, fps=60, resolution='1080p'):
+    if fps not in (60,120):raise ValueError('请选择 60 或 120 FPS')
+    duration=renderer.animation.length/renderer.animation.movie.fps
+    if not 0<duration<=1800:raise ValueError('动画时长无效')
+    size=size_for(resolution);rate=50  # GIF delays are measured in centiseconds.
+    with tempfile.TemporaryDirectory(prefix='gif-',dir=cache) as folder:
+        output=Path(folder)/'animation.gif'
+        encode(['-f','rawvideo','-pix_fmt','rgba','-s',f'{size[0]}x{size[1]}','-r',str(rate),'-i','pipe:0',
+                '-filter_complex',gif_palette(),'-map','[v]','-loop','0','-t',str(duration),str(output)],
+               frames_for(renderer,duration,size,rate))
+        publish(output,target)
+    return dict(path=str(target),seconds=duration)
+
+
+def gif_from_video(source, target, cache, resolution='720p'):
+    w,h=size_for(resolution)
+    with tempfile.TemporaryDirectory(prefix='gif-',dir=cache) as folder:
+        output=Path(folder)/'video.gif'
+        palette=gif_palette().replace('[0:v]',f'[0:v]fps=50,scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,')
+        encode(['-i',str(source),'-filter_complex',palette,'-map','[v]','-an','-loop','0',str(output)])
+        publish(output,target)
+    return dict(path=str(target))
+
+
 @contextmanager
 def video_source(asset, folder):
     if isinstance(asset.source, Path):
@@ -158,6 +187,11 @@ def video_mp4(asset, target, cache):
     return dict(path=str(target))
 
 
+def video_gif(asset, target, cache, resolution='720p'):
+    with tempfile.TemporaryDirectory(prefix='gif-source-',dir=cache) as folder, video_source(asset,folder) as source:
+        return gif_from_video(source,target,cache,resolution)
+
+
 def layer_info(path, preferred=''):
     package = open_package(Path(path))
     try:
@@ -182,14 +216,15 @@ def layer_info(path, preferred=''):
 
 
 @contextmanager
-def layer_renderer(path, index, renderer, notes=(), measures=(),state='clear',gauge=100,end_time=None):
+def layer_renderer(path, index, renderer, notes=(), measures=(),state='clear',gauge=100,end_time=None,loop=False):
     package = open_package(Path(path)); device = None; drawing = None
     try:
         from .song_layers import AUTO
-        if package.animations and index == AUTO:
+        if package.animations and (index == AUTO or end_time is not None):
+            if index!=AUTO and not 0<=index<len(package.animations):raise ValueError('请选择 Layer 动画')
             from .song_layers import GameLayerRenderer
             from .musicdb import metadata
-            drawing = GameLayerRenderer(package,metadata(path),notes,renderer,measures,state,gauge,end_time)
+            drawing = GameLayerRenderer(package,metadata(path),notes,renderer,measures,state,gauge,end_time,None if index==AUTO else index,loop)
             yield drawing
             return
         media = next((a for a in package.assets if a.kind in {'图片','视频'}),None)
@@ -203,7 +238,7 @@ def layer_renderer(path, index, renderer, notes=(), measures=(),state='clear',ga
             image = media.image()
             class Still:
                 static = True
-                animation = SimpleNamespace(length=108000,movie=SimpleNamespace(rect=(0,image.width,0,image.height),fps=60))
+                animation = SimpleNamespace(length=math.ceil(end_time*60) if end_time is not None else 108000,movie=SimpleNamespace(rect=(0,image.width,0,image.height),fps=60))
                 cached = None
                 def render(self, frame, size):
                     if self.cached is None: self.cached = qimage(image.resize(size))
@@ -268,7 +303,7 @@ def song_movie(audio, target, cache, options, notes=(), measures=()):
                     rect=getattr(drawing,'rect',drawing.animation.movie.rect);sw,sh=max(1,rect[1]-rect[0]),max(1,rect[3]-rect[2])
                     scale=min(1,viewport[0]/sw,viewport[1]/sh);render_size=(max(1,round(sw*scale)),max(1,round(sh*scale)))
                 args.extend(['-f','rawvideo','-pix_fmt','rgba','-s',f'{render_size[0]}x{render_size[1]}','-r',str(fps),'-i','pipe:0']); n+=1
-                frames=frames_for(drawing,duration,render_size,fps,bool(options.get('layer_loop',False)),layer_offset,True)
+                frames=frames_for(drawing,duration,render_size,fps,bool(options.get('layer_loop',False)) and options.get('_chart_end') is None,layer_offset,True)
                 filters.append(f'[0:v]scale={viewport[0]}:{viewport[1]},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=0x00000000'+
                                (',colorkey=black:0.08:0.02' if options.get('layer_black_key') else '')+'[fg]')
             elif layer:
@@ -288,7 +323,9 @@ def song_movie(audio, target, cache, options, notes=(), measures=()):
             if drawing:
                 filters.append('[bg][fg]overlay=shortest=1:format=auto,format=yuv420p[v]')
             elif layer:
-                filters.append('[bg][fg]overlay=shortest=1:format=auto,format=yuv420p[v]')
+                until=options.get('_chart_end')
+                enabled='' if until is None else f":enable='lt(t,{max(0,until+layer_offset)})'"
+                filters.append('[bg][fg]overlay=shortest=1:format=auto'+enabled+',format=yuv420p[v]')
             else:
                 filters.append('[bg]format=yuv420p[v]')
             args.extend(['-i',str(audio),'-filter_complex',';'.join(filters),'-map','[v]','-map',f'{n}:a:0',
@@ -296,7 +333,7 @@ def song_movie(audio, target, cache, options, notes=(), measures=()):
             encode(args,frames)
         if layer and Path(layer).suffix.lower() not in VIDEO_EXT | IMAGE_EXT:
             with layer_renderer(layer,int(options.get('layer_animation',-1)),options.get('renderer','gpu'),notes,measures,
-                                options.get('layer_state','clear'),options.get('layer_gauge',100),options.get('_chart_end')) as drawing:
+                                options.get('layer_state','clear'),options.get('layer_gauge',100),options.get('_chart_end'),bool(options.get('layer_loop',False))) as drawing:
                 if isinstance(drawing,Path):
                     layer = drawing
                     run()

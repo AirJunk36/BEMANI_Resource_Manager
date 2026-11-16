@@ -6,7 +6,7 @@ using Windows.Storage.Pickers;
 
 namespace IIDXResourceViewer;
 
-public sealed record ExportContext(string Path, string Context_path, List<string> Protected_roots, List<string> Hidden_layers,JsonElement? Live2d_pose=null);
+public sealed record ExportContext(string Path, string Context_path, List<string> Protected_roots, List<string> Hidden_layers,JsonElement? Live2d_pose=null,bool Modified=false);
 public sealed record SongVisuals(string Title, string? Bga_path, string? Layer_path, double Bga_offset, string Layer_animation);
 public sealed record LayerChoice(int Id, string Name) { public string DisplayName=>Id==-2?Tr(Name):Name; }
 public sealed record LayerState(string Id,string Name) { public string DisplayName=>Tr(Name); }
@@ -39,23 +39,25 @@ public sealed class BackgroundCore : IDisposable
 public sealed partial class MainWindow
 {
     private BackgroundCore? mediaJob;
-    private async void ExportMP4_Click(object sender, RoutedEventArgs e)
+    private async void ExportMP4_Click(object sender, RoutedEventArgs e) => await ExportVideo("mp4");
+    private async void ExportGIF_Click(object sender, RoutedEventArgs e) => await ExportVideo("gif");
+    private async Task ExportVideo(string format)
     {
         if (working || package is null || animation is null && asset?.Kind != "视频") return;
         Pause();
         var picker = new FolderPicker(); picker.FileTypeFilter.Add("*"); InitializePicker(picker);
         var folder = await picker.PickSingleFolderAsync(); if (folder is null) return;
-        string name = string.Join("_",PreviewTitle.Text.Split(System.IO.Path.GetInvalidFileNameChars())) + ".mp4";
+        string name = ExportName(PreviewTitle.Text,replaced:package.Modified) + "." + format;
         var args = new Dictionary<string,object> { ["resolution"] = PreviewResolution, ["fps"] = (int)AnimationPlaybackFps, ["renderer"] = RenderMode };
         if (animation is not null) args["animation"] = animation.Id; else args["asset"] = asset!.Id;
         ExportContext context;
         try { context = await Request<ExportContext>("export_context",args); }
         catch (Exception ex) { ShowError(ex); return; }
-        args["hidden_layers"] = context.Hidden_layers; args["kind"] = "mp4"; args["target"] = System.IO.Path.Combine(folder.Path,name);
-        var status = new TextBlock { Text = Tr("正在导出 MP4…"), TextWrapping = TextWrapping.Wrap };
+        args["hidden_layers"] = context.Hidden_layers; args["kind"] = format; args["target"] = System.IO.Path.Combine(folder.Path,name);
+        var status = new TextBlock { Text = Tr(format=="gif" ? "正在导出 GIF…" : "正在导出 MP4…"), TextWrapping = TextWrapping.Wrap };
         var ring = new ProgressRing { IsActive = true, Width = 24, Height = 24 };
         var content = new StackPanel { Spacing = 16 }; content.Children.Add(ring); content.Children.Add(status);
-        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = Tr("导出 MP4"), Content = Tr(content), CloseButtonText = Tr("取消" )};
+        var dialog = new ContentDialog { XamlRoot = Root.XamlRoot, Title = Tr(format=="gif" ? "导出 GIF" : "导出 MP4"), Content = Tr(content), CloseButtonText = Tr("取消" )};
         bool cancelled = false;
         var worker = new BackgroundCore(home,context); mediaJob = worker;
         dialog.Closed += (_, _) => { cancelled = true; worker.Dispose(); if (mediaJob == worker) mediaJob = null; };

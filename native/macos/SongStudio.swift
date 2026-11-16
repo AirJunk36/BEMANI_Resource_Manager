@@ -236,7 +236,7 @@ final class SongStudio: ObservableObject {
             model.mediaControls.refresh()
         }
     }
-    func export(video: Bool) {
+    func export(video: Bool, gif: Bool = false) {
         if originalAudio, let originalAsset {
             let panel = NSSavePanel(); panel.title = tr("导出原音频"); panel.canCreateDirectories = true
             panel.nameFieldStringValue = originalName
@@ -244,17 +244,18 @@ final class SongStudio: ObservableObject {
             exportOriginal(to:target,asset:originalAsset)
             return
         }
-        let panel = NSSavePanel(); panel.title = tr(video ? "导出乐曲 MP4" : "导出整曲 WAV")
-        panel.allowedContentTypes = video ? [.mpeg4Movie] : [.wav]; panel.canCreateDirectories = true
+        let panel = NSSavePanel(); panel.title = tr(gif ? "导出乐曲 GIF" : video ? "导出乐曲 MP4" : "导出整曲 WAV")
+        panel.allowedContentTypes = gif ? [.gif] : video ? [.mpeg4Movie] : [.wav]; panel.canCreateDirectories = true
         let base = !songPath.isEmpty ? URL(fileURLWithPath:songPath).deletingPathExtension().lastPathComponent : model.package.map { URL(fileURLWithPath:$0.path).deletingPathExtension().lastPathComponent } ?? "song"
         let name = info?.charts.first(where: { $0.id == chart })?.name.replacingOccurrences(of:" ",with:"_") ?? ""
-        panel.nameFieldStringValue = "\(base)_\(name).\(video ? "mp4" : "wav")"
+        let replaced=core?.context["modified"] as? Bool ?? model.modified
+        panel.nameFieldStringValue = "\(exportName(base+"_"+name,fallback:"song",replaced:replaced)).\(gif ? "gif" : video ? "mp4" : "wav")"
         guard panel.runModal() == .OK, let target = panel.url else { return }
         player.pause()
-        run(video ? "正在合成 MP4…" : "正在合成歌曲…") { [self] in
+        run(gif ? "正在导出 GIF…" : video ? "正在合成 MP4…" : "正在合成歌曲…") { [self] in
             let worker = try await connect(); var args = arguments(); args["target"] = target.path
             if video { args["options"] = try await videoArguments(worker) }
-            _ = try await worker.request(video ? "export_song_movie" : "export_song",args)
+            _ = try await worker.request(gif ? "export_song_gif" : video ? "export_song_movie" : "export_song",args)
             status = "已导出：\(target.path)"; model.status = status
         }
     }

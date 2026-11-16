@@ -56,10 +56,12 @@ def expand_tracks(package, parent):
     return tracks
 
 
-def audio_type(data):
+def audio_type(data, name=None):
     if data[:4] in {b"SD9\0", b"S3P0"}:
         return data[:4]
-    from .audio_crypto import KEYS
+    from .audio_crypto import KEYS, named_2dx
+    if named_2dx(data, name):
+        return b'AES-2DX'
     if data[:4] in KEYS:
         return data[:4]
     if len(data) >= 0x48 and not data.startswith((b"%", b"S3V0")):
@@ -85,8 +87,12 @@ class ReplacementWriter:
         data = Path(source).read_bytes()
         if asset.kind == "音频包":
             audio_assets(data, asset.name)
-            if audio_type(original) != audio_type(data):
+            kind=audio_type(original, asset.name)
+            if kind != audio_type(data, Path(source).name):
                 raise ValueError("整包替换需同格式；WAV/MP3 请替换包内单条音频。")
+            if kind==b'AES-2DX':
+                from .audio_crypto import decode_2dx
+                data=encrypt_cbc_cts(decode_2dx(data,Path(source).name),Path(asset.name).name)
         if asset.name.lower().endswith(".xml") and KBinXML.is_binary_xml(original) and not KBinXML.is_binary_xml(data):
             data = KBinXML(data).to_binary(encoding=KBinXML(original).encoding)
         return data
@@ -95,7 +101,7 @@ class ReplacementWriter:
         replacements = {}
         if asset.edit_target["kind"] == "ifs_track":
             parent = next(a for a in self.package.assets if a.name == asset.edit_target["parent"] and a.kind == "音频包")
-            replacements[id(parent.source)] = replace_audio_track(parent.read(), asset.edit_target["index"], source, self.media)
+            replacements[id(parent.source)] = replace_audio_track(parent.read(), asset.edit_target["index"], source, self.media, parent.name)
         elif isinstance(asset.source, ImageCanvas):
             canvas = asset.source
             image = self.media.image(source, canvas.img_size)
@@ -222,8 +228,15 @@ class ReplacementWriter:
                 if candidate.path.name != destination.name:
                     shutil.copyfile(candidate.path, destination)
             else:
-                if original.format == "audio" and audio_type(original.path.read_bytes()) != audio_type(Path(source).read_bytes()):
-                    raise ValueError("整包替换需要同格式音频包。")
+                if original.format == "audio":
+                    before, after = original.path.read_bytes(), Path(source).read_bytes()
+                    kind = audio_type(before, original.path.name)
+                    if kind != audio_type(after, Path(source).name):
+                        raise ValueError("整包替换需要同格式音频包。")
+                    if kind == b'AES-2DX':
+                        from .audio_crypto import decode_2dx
+                        destination.write_bytes(encrypt_cbc_cts(decode_2dx(after, Path(source).name), original.path.name))
+                        return
                 shutil.copyfile(source, destination)
         finally:
             candidate.close()
@@ -241,7 +254,7 @@ class ReplacementWriter:
             replacement = self.media.image(source, asset.image().size) if target["kind"] == "txp2_image" else Path(source).read_bytes()
             rewrite_txp2(self.package, target, replacement, destination)
         elif self.package.format == "audio":
-            data = replace_audio_track(self.package.path.read_bytes(), target["index"], source, self.media)
+            data = replace_audio_track(self.package.path.read_bytes(), target["index"], source, self.media, self.package.path.name)
             destination.write_bytes(data)
         elif self.package.format == "legacy":
             self.legacy(asset, source, destination)
@@ -343,16 +356,16 @@ class Editor:
             output = target / original.parent.name if package.format in {"legacy", "gcz"} else target
             output.mkdir(exist_ok=True)
             copy_sources(package, output)
-            report = {"原始资源": str(original), "原始文件SHA256": session.originals,
-                      "输出文件": [str((output / Path(p).name).relative_to(target)) for p in package.source_files],
-                      "替换记录": [{"素材": step.selected_name or "整个资源文件", "替换文件": step.source, "说明": step.messages} for step in session.steps]}
-            record = target / "替换记录.json"
+            report = {"source": str(original), "source_sha256": session.originals,
+                      "files": [str((output / Path(p).name).relative_to(target)) for p in package.source_files],
+                      "replacements": [{"asset": step.selected_name or "whole_file", "replacement": step.source, "details": step.messages} for step in session.steps]}
+            record = target / "replacements.json"
             number = 2
             while record.exists():
-                record = target / f"替换记录_{number}.json"
+                record = target / f"replacements_{number}.json"
                 number += 1
             record.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf8")
-            return {"path": str(target), "primary": str(output / original.name), "files": report["输出文件"]}
+            return {"path": str(target), "primary": str(output / original.name), "files": report["files"]}
         except BaseException:
             shutil.rmtree(target, ignore_errors=True)
             raise

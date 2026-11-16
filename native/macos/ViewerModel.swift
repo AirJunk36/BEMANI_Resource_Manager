@@ -101,7 +101,7 @@ final class ViewerModel: ObservableObject {
     private var songAvailable = false
     var canExportSong: Bool { songAvailable && !working }
     var hasSongPreview: Bool { package?.song_preview == true }
-    var displayTitle: String { isSongPreview || previewKind == "empty" ? tr(title) : title }
+    var displayTitle: String { modified ? exportName(title,fallback:"asset",replaced:true) : isSongPreview || previewKind == "empty" ? tr(title) : title }
     var isSongPreview: Bool { selectedItem == "song" }
     var canOpenSongStudio: Bool {
         guard !working, let package else { return false }
@@ -445,7 +445,7 @@ final class ViewerModel: ObservableObject {
         panel.title = tr("另存为")
         panel.message = tr("选择游戏目录外的新文件夹。")
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = URL(fileURLWithPath: package.path).deletingPathExtension().lastPathComponent + "_替换"
+        panel.nameFieldStringValue = exportName(URL(fileURLWithPath: package.path).deletingPathExtension().lastPathComponent,fallback:"resource",replaced:true)
         guard panel.runModal() == .OK, let url = panel.url else { return }
         if FileManager.default.fileExists(atPath: url.path) { status = "文件夹已存在，请更名。"; return }
         working = true; status = "正在保存…"
@@ -463,7 +463,7 @@ final class ViewerModel: ObservableObject {
         pause()
         let token = generation
         let selectedAsset = asset
-        let name = (["textures", "audio"].contains(kind) ? URL(fileURLWithPath: package.path).deletingPathExtension().lastPathComponent : title).replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: ":", with: "_")
+        let name = exportName(["textures", "audio"].contains(kind) ? URL(fileURLWithPath: package.path).deletingPathExtension().lastPathComponent : title,replaced:modified)
         var args: [String: Any] = ["kind": kind, "frame": Int(frame)]
         if let a = animation { args["animation"] = a.id }
         if let a = selectedAsset { args["asset"] = a.id }
@@ -473,7 +473,7 @@ final class ViewerModel: ObservableObject {
             defer { if token == generation { working = false } }
             do {
                 var filename = name + ["frame": "_\(Int(frame)).png", "webp": ".webp", "sequence": "_frames", "textures": "_textures", "audio": "_audio"][kind, default: ""]
-                if kind == "asset", let selectedAsset { filename = URL(fileURLWithPath: selectedAsset.name).lastPathComponent }
+                if kind == "asset", let selectedAsset { let url=URL(fileURLWithPath:selectedAsset.name);filename=exportName(url.deletingPathExtension().lastPathComponent,replaced:modified)+"."+url.pathExtension }
                 guard token == generation else { return }
                 let panel = NSSavePanel()
                 panel.title = tr("导出素材"); panel.canCreateDirectories = true; panel.nameFieldStringValue = filename

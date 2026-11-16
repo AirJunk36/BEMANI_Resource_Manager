@@ -103,6 +103,7 @@ struct ViewerWindow: View {
                 Button(tr("当前帧 PNG")) { model.export("frame") }.disabled(model.animation == nil)
                 Button(tr("动画 WebP")) { model.export("webp") }.disabled(model.animation == nil)
                 Button(tr("动画 / 视频 MP4…"), action: model.exportMP4).disabled(model.animation == nil && model.asset?.kind != "视频")
+                Button(tr("导出 GIF…"), action: model.exportGIF).disabled(model.animation == nil && model.asset?.kind != "视频")
                 Button(tr("PNG 序列")) { model.export("sequence") }.disabled(model.animation == nil)
                 Divider()
                 Button(tr("当前素材")) { model.export("asset") }.disabled(model.asset == nil)

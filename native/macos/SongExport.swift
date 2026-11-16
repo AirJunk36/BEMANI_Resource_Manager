@@ -37,6 +37,11 @@ struct SongExportView: View {
                             if info.needs_chart { Text(tr("需要配套 .1 谱面")).font(.caption).foregroundStyle(.secondary) }
                         }
                         HStack {
+                            Button(tr("全部")) {
+                                let all = (studio.bgaPath.isEmpty || studio.useBGA) && (studio.layerPath.isEmpty || studio.useLayer)
+                                studio.useBGA = !all && !studio.bgaPath.isEmpty
+                                studio.useLayer = !all && !studio.layerPath.isEmpty
+                            }.disabled(studio.bgaPath.isEmpty && studio.layerPath.isEmpty)
                             Toggle(tr("BGA"),isOn:$studio.useBGA).disabled(studio.bgaPath.isEmpty)
                             Toggle(tr("Layer"),isOn:$studio.useLayer).disabled(studio.layerPath.isEmpty)
                             Toggle(tr("循环"),isOn:$model.loop)
@@ -85,6 +90,9 @@ struct SongExportView: View {
                 if studio.busy { Button(tr("取消处理"),action:studio.cancel) }
                 else if !previewOnly {
                     Button(tr("关闭")) { model.showSongExport = false }.keyboardShortcut(.cancelAction)
+                    if studio.videoMode && !studio.originalAudio {
+                        Button(tr("导出 GIF…")) { studio.export(video:true,gif:true) }.disabled(!studio.canPreview).help(tr("GIF：50 FPS，无音频"))
+                    }
                     Button(tr(studio.originalAudio ? "导出原格式…" : studio.videoMode ? "导出 MP4…" : "导出 WAV…")) { studio.export(video:studio.videoMode) }.disabled(!studio.canPreview)
                 }
             }
@@ -113,7 +121,7 @@ struct SongExportView: View {
     }
     private var layerStateSettings: some View {
         HStack {
-            if !studio.layerStates.isEmpty && studio.layerAnimation == -2 {
+            if !studio.layerStates.isEmpty {
                 Picker(tr("状态"),selection:$studio.layerState) { ForEach(studio.layerStates) { Text(tr($0.name)).tag($0.id) } }
                 if studio.hasLayerGauge {
                     Text(tr("血量"));Slider(value:$studio.layerGauge,in:0...100,step:1,onEditingChanged:{ editing in if !editing { refreshPreview() } }).frame(maxWidth:150)

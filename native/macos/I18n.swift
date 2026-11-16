@@ -39,6 +39,8 @@ private enum Translations {
     static var cache: [String:String]=[:]
 }
 
+func englishExportTitle(_ text: String) -> String { Translations.values[text] ?? text }
+
 func tr(_ text: String) -> String {
     guard AppLanguage.shared.english,text.unicodeScalars.contains(where:{ (0x4e00...0x9fff).contains($0.value) }) else { return text }
     if let value=Translations.values[text] { return value }
@@ -54,7 +56,7 @@ func tr(_ text: String) -> String {
     if value==text {
         if text.contains("\n") { value=text.components(separatedBy:"\n").map(tr).joined(separator:"\n") }
         else if let colon=text.firstIndex(of:"："),let label=Translations.values[String(text[..<colon]).trimmingCharacters(in:.whitespaces)] {
-            let indent=String(text.prefix(while:{$0==" "}));value=indent+label+": "+text[text.index(after:colon)...]
+            let indent=String(text.prefix(while:{$0==" "}));value=indent+label+": "+tr(String(text[text.index(after:colon)...]))
         }
     }
     Translations.lock.lock();if Translations.cache.count>=4096 { Translations.cache.removeAll(keepingCapacity:true) };Translations.cache[text]=value;Translations.lock.unlock()

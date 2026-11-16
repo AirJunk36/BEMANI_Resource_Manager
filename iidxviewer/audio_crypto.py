@@ -1,4 +1,4 @@
-"""9th–12th 2DX block scrambling; only in-memory data is transformed.
+"""Legacy 2DX scrambling and 19 CN filename AES; transform copies only.
 
 Format references: djhackersdev/legacy-tools, iidx/old 2dx tools/crack2dx.c;
 SaxxonPike/scharfrichter, Scharfrichter/Archives/Bemani2DX.cs.
@@ -15,7 +15,31 @@ KEYS[b'%e12'] = KEYS[b'%hid'] = KEYS[b'%e11']
 PARTIAL = {b'%e12', b'%hid'}
 
 
-def decode_2dx(data):
+def named_2dx(data, name):
+    """Probe two AES blocks before allocating a decoded bank."""
+    from pathlib import PurePosixPath
+    if not name or PurePosixPath(name).suffix.lower() != '.2dx' or not 88 <= len(data) <= 256 * 1024 * 1024:
+        return False
+    def header_valid(head, size):
+        start, count = struct.unpack_from('<II', head, 16)
+        return 0 < count <= 100000 and 0x48 + count * 4 <= start <= size
+    if header_valid(data, len(data)):
+        return False
+    from Crypto.Cipher import AES
+    from .legacy_codecs import named_key
+    try:
+        key = named_key(PurePosixPath(name).name, 16)
+    except UnicodeEncodeError:
+        return False
+    head = AES.new(key, AES.MODE_CBC, data[:16]).decrypt(data[16:48])
+    return header_valid(head, len(data) - 16)
+
+
+def decode_2dx(data, name=None):
+    if named_2dx(data, name):
+        from pathlib import PurePosixPath
+        from .legacy_codecs import decrypt_cbc_cts
+        return decrypt_cbc_cts(data, PurePosixPath(name).name)
     tag = data[:4]
     if tag not in KEYS:
         if tag.startswith(b'%'):
@@ -50,8 +74,12 @@ def decode_2dx(data):
     return block.tobytes()[:length]
 
 
-def encode_2dx(plain, original):
+def encode_2dx(plain, original, name=None):
     """Preserve the bank's scrambling type when saving a replaced track."""
+    if named_2dx(original, name):
+        from pathlib import PurePosixPath
+        from .packing import encrypt_cbc_cts
+        return encrypt_cbc_cts(plain, PurePosixPath(name).name)
     tag = original[:4]
     if tag not in KEYS:
         return plain

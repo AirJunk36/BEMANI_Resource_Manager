@@ -234,7 +234,8 @@ class Scene:
                     if name.startswith('@host/'):
                         ident=int(name.rsplit('/',1)[1]);fraction=max(0,min(100,getattr(self,'gauge',100)))/100
                         if 4001<=ident<=4008:
-                            value=round(fraction*1000) if ident<=4004 else 1000
+                            maximum=getattr(self,'gauge_max',1000)
+                            value=round(fraction*maximum) if ident<=4004 else maximum
                             power=4004-ident if ident<=4004 else 4008-ident
                             name=f'HP_{value//10**power%10}'
                             image=self.texture(name)
@@ -248,6 +249,7 @@ class Scene:
                     if self.size(name) is None:continue
                     vertices=((0,0,0,0),(w,0,1,0),(0,h,0,1),(0,h,0,1),(w,0,1,0),(w,h,1,1))
                     result.append(Draw(name,vertices,matrix,(1,1,1,alpha),blend=8 if blend=='add' else 9 if blend=='subtract' else 0,layer=layer))
+                if self.animation.name.casefold()=='hp':result=self.layout_legacy_gauge(result)
                 return self.host_gauge(result,frame)
             for layer, node in self.animation.draw_layers(frame, hidden):
                 name, x, y, w, h, pivot, angle, alpha, blend = node
@@ -287,11 +289,22 @@ class Scene:
         if animation is not None:
             if self.gauge_scene is None:self.gauge_scene=Scene(self.package,animation)
             self.gauge_scene.gauge=getattr(self,'gauge',100)
+            self.gauge_scene.gauge_max=getattr(self,'gauge_max',1000)
+            self.gauge_scene.rect=self.rect
             draws.extend(replace(draw,layer='root/host-hp') for draw in self.gauge_scene.draws(frame%max(1,animation.length)))
-        else:
-            from .afp_hosts import gauge_draws
-            draws.extend(gauge_draws(self.rect,getattr(self,'gauge',100)))
         return draws
+
+    def layout_legacy_gauge(self, draws):
+        """The game's HP overlay stretches the original skin across the viewport."""
+        frame=next((draw for draw in draws if draw.texture=='HP_WAKU'),None)
+        if frame is None:return draws
+        a,b,c,d,x,y=frame.matrix
+        xs=[a*u+c*v+x for u,v,_,_ in frame.vertices]
+        left,right=min(xs),max(xs)
+        if right<=left:return draws
+        x0,x1,y0,y1=self.rect;width=x1-x0;sx=width*.98/(right-left)
+        parent=(sx,0,0,(y1-y0)/480,x0+width*.01-left*sx,y0)
+        return [replace(draw,matrix=compose(parent,draw.matrix)) for draw in draws]
 
     def clip_rectangles(self, draws):
         # AEP compositions use many independent rect masks. Geometric clipping

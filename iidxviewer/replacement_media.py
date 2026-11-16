@@ -171,10 +171,11 @@ def wrap_s3v(original, payload):
     return bytes(head) + payload
 
 
-def replace_audio_track(data, index, source, converter):
+def replace_audio_track(data, index, source, converter, name=None):
     from .audio_crypto import decode_2dx, encode_2dx
-    if data.startswith(b'%'):
-        return encode_2dx(replace_audio_track(decode_2dx(data), index, source, converter), data)
+    plain = decode_2dx(data, name)
+    if plain is not data:
+        return encode_2dx(replace_audio_track(plain, index, source, converter), data, name)
     tracks = audio_assets(data, "audio")
     if not 0 <= index < len(tracks):
         raise ValueError("音频轨道索引无效")

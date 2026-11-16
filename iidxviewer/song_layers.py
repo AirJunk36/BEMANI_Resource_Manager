@@ -77,41 +77,47 @@ def schedule(package, choices, notes, seed=0, measures=()):
     return result
 
 
-def host_schedule(package, host, notes, seed, finish):
-    """Deterministic PG playback; Ninja's DLL triggers damage every 50 PGs."""
+def host_schedule(package, host, notes, seed, finish, poor=False):
+    """Clear uses PG counters; Failed sends POOR while the host is idle."""
     rng=random.Random(seed);result=[]
     def append(start,index):
         animation=package.animations[index]
         stop=start+max(1,math.ceil(root_frames(animation)*60/animation.movie.fps-1e-7))
         result.append((start,stop,index))
     append(0,(host['intro'] or host['normal'])[0])
-    interval=host.get('hit_every',0)
-    if interval and host['hit']:
+    interval=1 if poor else host.get('hit_every',0)
+    reactions=host['miss' if poor else 'hit']
+    if interval and reactions:
         count=0
         for tick in notes:
             if tick>=finish:break
             while result[-1][1]<=tick:append(result[-1][1],rng.choice(host['normal']))
-            if host.get('hit_idle_only') and result[-1][2] not in host['normal']:continue
+            if (poor or host.get('hit_idle_only')) and result[-1][2] not in host['normal']:continue
             count+=1
             if count%interval:continue
-            if result[-1][2] in host['hit']:continue
+            if result[-1][2] in reactions:continue
             start,stop,index=result.pop()
             if tick>start:result.append((start,tick,index))
-            append(tick,host['hit'][0])
-    while result[-1][1]<max(108001,finish):append(result[-1][1],rng.choice(host['normal']))
+            append(tick,rng.choice(reactions) if poor else reactions[0])
+    while result[-1][1]<finish:append(result[-1][1],rng.choice(host['normal']))
     return result
 
 
 class GameLayerRenderer:
     @property
     def rect(self):return self.animation.movie.rect
-    def __init__(self, package, record, notes, mode, measures=(),state='clear',gauge=100,end_time=None):
+    def __init__(self, package, record, notes, mode, measures=(),state='clear',gauge=100,end_time=None,fixed=None,loop=False):
         from .afp_hosts import military_actor,canvas,profile
         self.profile=profile(package);self.state=state
         if state not in {'auto','normal','miss','hit','clear','failed'}:raise ValueError('Layer 状态无效')
         if not math.isfinite(float(gauge)) or not 0<=float(gauge)<=100:raise ValueError('血量范围为 0–100')
         self.gauge=float(gauge);self.note_ticks=sorted(math.ceil(t*60-1e-7) for t in notes if t>=0)
         self.finish=math.ceil((max(notes,default=1800)+1 if end_time is None else end_time)*60-1e-7)
+        self.has_end=end_time is not None or bool(self.profile)
+        self.fixed,self.loop=fixed,loop
+        names={a.name.casefold():i for i,a in enumerate(package.animations) if '/' not in a.name}
+        endings=self.profile['failed' if state=='failed' else 'clear'] if self.profile else tuple(names[n] for n in ('out','end','outro','ending','clear') if n in names)
+        self.ending=endings[0] if endings and self.has_end else None
         layout = mapping(package, record)
         if layout is None:
             raise ValueError('此 Layer 请选择具体动画')
@@ -127,10 +133,12 @@ class GameLayerRenderer:
             self.host_actor=Scene(package,package.animations[actor]);self.sequence=None
         if self.profile:
             self.sequence=None
-            self.cues=host_schedule(package,self.profile,self.note_ticks,(record or {}).get('song_id',0),self.finish)
+            self.cues=host_schedule(package,self.profile,self.note_ticks,(record or {}).get('song_id',0),self.finish,state=='failed')
+        if fixed is not None:self.sequence=None
         self.starts = [cue[0] for cue in self.cues]
-        first = self.cues[0][2] if self.profile else self.sequence if self.sequence is not None else choices[0].index
-        self.animation = SimpleNamespace(length=108001, movie=SimpleNamespace(fps=60, rect=canvas(package,package.animations[first])))
+        first = fixed if fixed is not None else self.cues[0][2] if self.profile else self.sequence if self.sequence is not None else choices[0].index
+        length=max(1,math.ceil((self.outcome_end or self.finish/60)*60)) if self.has_end else 108001
+        self.animation = SimpleNamespace(length=length, movie=SimpleNamespace(fps=60, rect=canvas(package,package.animations[first])))
         self.device = None
         self.drawing = None
         if mode == 'gpu':
@@ -148,14 +156,20 @@ class GameLayerRenderer:
         self.active = None
 
     def cue_at(self, frame):
+        if self.has_end and self.state in {'auto','clear','failed'} and frame>=self.finish:
+            if self.ending is None:return None
+            animation=self.package.animations[self.ending]
+            local=math.floor((frame-self.finish)*animation.movie.fps/60+1e-7)
+            return -1,self.ending,min(local,max(0,root_frames(animation)-1))
+        if self.fixed is not None:
+            animation=self.package.animations[self.fixed]
+            local=math.floor(frame*animation.movie.fps/60+1e-7)
+            if not self.loop and local>=animation.length:return None
+            return -2,self.fixed,local%animation.length if self.loop else local
         if self.profile:
-            scheduled=self.state in {'auto','clear','failed'}
-            state=('failed' if self.state=='failed' else 'clear') if scheduled and frame>=self.finish else 'normal' if scheduled else self.state
-            if state not in {'auto','normal'} and self.profile.get(state):
-                index=self.profile[state][0];a=self.package.animations[index]
-                elapsed=max(0,frame-self.finish) if scheduled else frame
-                local=math.floor(elapsed*a.movie.fps/60+1e-7)
-                local=local%max(1,root_frames(a)) if state in {'miss','hit'} else min(local,max(0,root_frames(a)-1))
+            if self.state in {'miss','hit'} and self.profile.get(self.state):
+                index=self.profile[self.state][0];a=self.package.animations[index]
+                local=math.floor(frame*a.movie.fps/60+1e-7)%max(1,root_frames(a))
                 return -1,index,local
         at = bisect_right(self.starts, frame) - 1
         if at >= 0 and frame < self.cues[at][1]:
@@ -166,11 +180,13 @@ class GameLayerRenderer:
 
     @property
     def outcome_end(self):
-        if not self.profile or self.state not in {'auto','clear','failed'}:return 0
-        choices=self.profile['failed' if self.state=='failed' else 'clear']
-        return self.finish/60+max((root_frames(self.package.animations[i])/self.package.animations[i].movie.fps for i in choices),default=0)
+        if self.ending is None or self.state not in {'auto','clear','failed'}:return 0
+        animation=self.package.animations[self.ending]
+        return self.finish/60+root_frames(animation)/animation.movie.fps
 
     def gauge_at(self, frame):
+        # All POOR judgements leave the boss undamaged, including its ending.
+        if self.state=='failed':return self.gauge
         if self.state not in {'auto','clear','failed'}:return self.gauge
         if frame>=self.finish:return 0
         if not self.note_ticks:return self.gauge
@@ -181,7 +197,7 @@ class GameLayerRenderer:
 
     def frame_key(self, frame):
         cue = self.cue_at(frame)
-        sequence = None if self.sequence is None else math.floor(frame * self.package.animations[self.sequence].movie.fps / 60 + 1e-7)
+        sequence = None if self.sequence is None or self.has_end and frame>=self.finish else math.floor(frame * self.package.animations[self.sequence].movie.fps / 60 + 1e-7)
         health=round(self.gauge_at(frame),6) if self.profile and (self.profile['gauge'] or self.profile.get('military')) else None
         return sequence, cue, health
 
@@ -193,7 +209,8 @@ class GameLayerRenderer:
         self.drawing.scene.rect=self.rect
         if self.profile:
             self.drawing.scene.gauge=self.gauge_at(self.song_frame)
-            self.drawing.scene.show_host_gauge=bool(self.profile.get('military') and not self.profile['gauge'])
+            if self.profile.get('military'):self.drawing.scene.gauge_max=max(1,len(self.note_ticks))
+            self.drawing.scene.show_host_gauge=False
             self.drawing.scene.suppress_host_gauge=bool(self.profile['gauge'])
         self.drawing.animation = animation = self.package.animations[index]
         if self.host_actor:
@@ -211,7 +228,7 @@ class GameLayerRenderer:
         image.fill(0)
         painter = QPainter(image)
         try:
-            if self.sequence is not None:
+            if self.sequence is not None and not (self.has_end and frame>=self.finish):
                 local = math.floor(frame*self.package.animations[self.sequence].movie.fps/60 + 1e-7)
                 self.draw_clip(self.sequence, local, size, painter)
             cue = self.cue_at(frame)

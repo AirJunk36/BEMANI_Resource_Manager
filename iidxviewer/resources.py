@@ -156,7 +156,7 @@ def unwrap_media(data: bytes):
 def audio_assets(data: bytes, name: str) -> list[Asset]:
     """2DX table entries wrap RIFF; SD9 wraps one RIFF; S3P stores ASF slices."""
     from .audio_crypto import decode_2dx
-    data = decode_2dx(data) if data.startswith(b'%') else data
+    data = decode_2dx(data, name)
     result = []
     if data.startswith(b"SD9\x00"):
         start = struct.unpack_from("<I", data, 4)[0]

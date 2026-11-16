@@ -154,3 +154,26 @@ class SongLayerTests(unittest.TestCase):
                 self.assertEqual(len(frames),60)
                 self.assertEqual(drawing.call_count,5)  # Four source frames + transparency.
         finally: renderer.close()
+
+    def test_chart_end_interrupts_long_sequence_and_fixed_clip_with_outro(self):
+        package=layer_package();movie=package.animations[0].movie
+        package.animations=[Animation('seq',movie,timeline([[place(2)]]+[[]]*299)),Animation('out',movie,timeline([[place(2)],[]]))]
+        for fixed in [None,0]:
+            renderer=GameLayerRenderer(package,{},[0],'cpu',end_time=.5,fixed=fixed,loop=True)
+            try:
+                self.assertEqual(renderer.frame_key(29)[0],29*30//60 if fixed is None else None)
+                self.assertEqual(renderer.cue_at(30),(-1,1,0))
+                self.assertEqual(renderer.cue_at(300),(-1,1,1))
+                self.assertIsNone(renderer.frame_key(30)[0])
+                self.assertAlmostEqual(renderer.outcome_end,.5+2/30)
+                self.assertTrue(any(pixels(renderer.render(30,(64,64)))))
+            finally:renderer.close()
+
+    def test_chart_end_hides_layer_without_outro_and_seeking_restores_it(self):
+        package=layer_package();package.animations[0].name='seq'
+        renderer=GameLayerRenderer(package,{},[0,4],'cpu',end_time=.5)
+        try:
+            before=pixels(renderer.render(29,(64,64)))
+            self.assertTrue(any(before));self.assertFalse(any(pixels(renderer.render(30,(64,64)))))
+            self.assertEqual(before,pixels(renderer.render(29,(64,64))))
+        finally:renderer.close()
