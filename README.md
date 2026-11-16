@@ -13,15 +13,12 @@ macOS 使用 SwiftUI，Windows 使用 WinUI 3，共用 Python 解析核心。
 - SD9、2DX、S3P、S3V、SSP 等音频读取，以及 BGA 视频预览。
 - 按曲名、作曲家、编号或路径搜索，显示曲名与作曲家。
 - 完整乐曲试听，选择 BGA、Layer，导出 WAV、原编码音轨或 MP4。
-- Layer 跟随谱面；BOSS 提供默认 **Clear** 和 **Failed** 两种结局，演奏过程均模拟全 PG。
-- ICARUS 等 Military Stage 显示宿主血条；Rche 的 Todestrieb、entelecheia 及同类只播放判定特效，不添加血条。
 - 素材显隐、预览点击选中、替换、撤销和另存；原始游戏文件不被覆盖。
 - CPU / GPU 渲染，60 / 120 FPS，多种分辨率、比例和中英文界面。
 - 可选 Live2D/MOC3 字段、贴图、网格和变形器编辑，以及实时预览集成。运行库及分发条件见 [Live2D 说明](docs/LIVE2D.md)。
 
 不同版本及特殊脚本的兼容性仍在完善。三维、滤镜及特定游戏宿主效果可能不完整。
-新版 Military AFP 缺少旧版 HP 贴图时，血条使用项目生成的宿主绘制，不声称逐像素复现游戏 UI。
-血量按 PG 进度模拟，尚未完整还原所有 BOSS 的实际伤害、难度及最大血量公式。
+
 
 ## 从源码运行
 
