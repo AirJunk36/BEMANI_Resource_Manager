@@ -3,7 +3,7 @@
 **BEMANI素材管理器 · 1.0.0 Beta**
 
 [English](README.en.md) · [GPL-3.0](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
-
+**本项目完全由Codex制作**
 浏览、预览和编辑本地 BEMANI 游戏素材的非官方桌面工具。
 macOS 使用 SwiftUI，Windows 使用 WinUI 3，共用 Python 解析核心。
 
