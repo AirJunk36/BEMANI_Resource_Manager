@@ -2,6 +2,8 @@
 
 **1.0.0 Beta** · [简体中文](README.md) · [GPL-3.0](LICENSE)
 
+**This project was ENTIRELY made by Codex**
+
 An unofficial desktop browser and editor for local BEMANI resources.
 SwiftUI on macOS and WinUI 3 on Windows share a Python parsing core.
 
