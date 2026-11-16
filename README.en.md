@@ -10,12 +10,6 @@ BGA playback, song/composer search, complete-song previews, WAV/original
 audio/MP4 export, per-material visibility, picking, replacement and undo.
 Original game files are protected from overwrite.
 
-BOSS layers offer **Clear** (default) and **Failed** outcomes with identical
-perfect-great chart playback before the ending. Military Stage hosts include
-health overlays; Rche-style hosts have judgement effects without health bars.
-Modern packages without HP artwork use a generated host overlay rather than
-a pixel-exact recreation. Not every damage formula, 3D effect, filter or
-script is implemented.
 
 The interface supports Chinese and English, CPU/GPU rendering, 60/120 FPS,
 and selectable resolution/aspect ratio. Optional Live2D/MOC3 editing and
