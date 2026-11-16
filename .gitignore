@@ -1,0 +1,46 @@
+# Local environments and build outputs
+.venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+bin/
+obj/
+*.spec
+*.app/
+*.exe
+*.dll
+*.dylib
+*.so
+*.zip
+.DS_Store
+.ghost-*
+.vs/
+.idea/
+.env
+.env.*
+*.p12
+*.pem
+
+# Icons are generated from tools/build_icons.py or supplied privately.
+*.ico
+*.icns
+
+# Game data, private test fixtures and archived working copies
+BEMANI_Resource_Manager/
+TestData/
+fixtures/
+*.ifs
+*.2dx
+*.sd9
+*.s3p
+*.s3v
+*.ssp
+*.moc3
+*.model3.json
+*.mp4
+*.wmv
+*.gcz
+*.gcr
+*.idx
+*.idr

@@ -1,0 +1,15 @@
+Live2D runtime
+
+live2d-py 1.0.0: Copyright (c) Arkueid. MIT License; see live2d-py-LICENSE.txt.
+https://github.com/EasyLive2D/live2d-py
+
+Cubism Core: Copyright Live2D Inc. All rights reserved.
+Live2D Proprietary Software License; see Core-LICENSE.md.
+The Windows C ABI runtime is the official Cubism Native SDK 5-r.5 x86_64 DLL.
+macOS uses the Core statically linked into the live2d-py wheel.
+
+Cubism Framework: Live2D Open Software License; see Framework-LICENSE.md.
+
+The MOC3 field editor was implemented from documented binary layout facts.
+Format references: OpenL2D/moc3ingbird, InsanityLabs/MINT_Moc3_INochi_Translator.
+No MINT source code is bundled.

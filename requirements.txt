@@ -1,0 +1,6 @@
+ifstools==3.2
+Pillow>=11.0,<14
+PySide6-Essentials>=6.12,<6.13
+imageio-ffmpeg>=0.6,<0.9
+pycryptodome>=3.21,<4
+numpy>=2.3,<3

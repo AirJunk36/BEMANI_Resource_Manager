@@ -1,0 +1,147 @@
+<Window x:Class="IIDXResourceViewer.MainWindow"
+ xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+ xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+ xmlns:local="using:IIDXResourceViewer" Title="BEMANI素材管理器">
+ <Grid x:Name="Root" Background="{ThemeResource ApplicationPageBackgroundThemeBrush}" AllowDrop="True" DragOver="Root_DragOver" Drop="Root_Drop">
+  <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+  <Grid Padding="20,12" ColumnSpacing="12">
+   <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+   <Grid ColumnSpacing="16" VerticalAlignment="Center">
+    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+    <TextBlock x:Name="AppHeading" Text="BEMANI素材管理器" Style="{ThemeResource TitleTextBlockStyle}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="BEMANI素材管理器"/>
+    <TextBlock x:Name="DraftIndicator" Grid.Column="1" Visibility="Collapsed" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center"/>
+   </Grid>
+   <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+    <Button Content="打开目录" Click="Folder_Click"/><Button Content="打开文件" Click="File_Click"/>
+    <DropDownButton x:Name="EditMenu" Content="替换" IsEnabled="False"><DropDownButton.Flyout><MenuFlyout>
+     <MenuFlyoutItem x:Name="ReplaceAssetMenuItem" Text="替换素材…" Tag="asset" Click="Replace_Click"/>
+     <MenuFlyoutItem Text="替换资源文件…" Tag="file" Click="Replace_Click"/>
+     <MenuFlyoutSeparator/>
+     <MenuFlyoutItem x:Name="UndoReplacementMenuItem" Text="撤销替换" Click="UndoReplacement_Click"/>
+     <MenuFlyoutItem x:Name="SaveReplacementMenuItem" Text="另存为…" Click="SaveReplacement_Click"/>
+    </MenuFlyout></DropDownButton.Flyout></DropDownButton>
+    <Button Content="帮助" Click="Help_Click"/>
+    <ComboBox x:Name="LanguageChoice" Width="108" AutomationProperties.Name="Language / 语言" SelectionChanged="Language_Changed"><ComboBoxItem Content="简体中文" Tag="zh-Hans"/><ComboBoxItem Content="English" Tag="en"/></ComboBox>
+   </StackPanel>
+  </Grid>
+  <Grid x:Name="Workspace" Grid.Row="1" ColumnSpacing="12" Padding="16,0,16,8" SizeChanged="Workspace_SizeChanged">
+   <Grid.ColumnDefinitions><ColumnDefinition x:Name="FileColumn" Width="220"/><ColumnDefinition x:Name="ContentColumn" Width="240"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+   <Grid RowSpacing="8">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <TextBlock Text="资源库" Style="{ThemeResource SubtitleTextBlockStyle}"/>
+    <TextBox x:Name="FileSearch" Grid.Row="1" PlaceholderText="搜索文件、路径或乐曲名" TextChanged="Filter_Changed"/>
+    <Grid Grid.Row="2" RowSpacing="6"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <ComboBox x:Name="Versions" HorizontalAlignment="Stretch" SelectionChanged="Filter_SelectionChanged"/>
+     <ComboBox x:Name="Kinds" Grid.Row="1" HorizontalAlignment="Stretch" SelectionChanged="Filter_SelectionChanged"/>
+    </Grid>
+    <ListView x:Name="FilesList" Grid.Row="3" SelectionMode="Single" SelectionChanged="Files_SelectionChanged">
+     <ListView.ItemTemplate><DataTemplate x:DataType="local:FileEntry"><StackPanel Padding="0,4" Spacing="3" ToolTipService.ToolTip="{x:Bind Path}">
+      <TextBlock Tag="data" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis"/>
+      <TextBlock Tag="data" Text="{x:Bind Subtitle}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap" MaxLines="2" TextTrimming="CharacterEllipsis"/>
+     </StackPanel></DataTemplate></ListView.ItemTemplate>
+    </ListView>
+    <TextBlock x:Name="FileCount" Grid.Row="4" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+   </Grid>
+   <Grid Grid.Column="1" RowSpacing="8">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/></Grid.RowDefinitions>
+    <StackPanel Spacing="4">
+     <TextBlock x:Name="PackageTitle" Tag="data" Text="包内素材" Style="{ThemeResource SubtitleTextBlockStyle}" TextTrimming="CharacterEllipsis" TextWrapping="Wrap" MaxLines="2"/>
+     <TextBlock x:Name="EngineSummary" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+    </StackPanel>
+    <TextBox x:Name="AssetSearch" Grid.Row="1" PlaceholderText="搜索素材" TextChanged="AssetSearch_Changed"/>
+    <ListView x:Name="ContentsList" Grid.Row="2" SelectionMode="Single" SelectionChanged="Contents_SelectionChanged">
+     <ListView.ItemTemplate><DataTemplate x:DataType="local:ContentItem"><Grid Padding="0,4" ColumnSpacing="6"><Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+      <FontIcon Glyph="{x:Bind HeaderGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="11" VerticalAlignment="Top" Margin="0,4,0,0" Visibility="{x:Bind HeaderVisibility}"/>
+      <StackPanel Grid.Column="1" Spacing="3">
+      <TextBlock Tag="data" Text="{x:Bind DisplayName}" TextTrimming="CharacterEllipsis"/>
+      <TextBlock Tag="data" Text="{x:Bind DisplaySubtitle}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+     </StackPanel></Grid></DataTemplate></ListView.ItemTemplate>
+    </ListView>
+   </Grid>
+   <Grid Grid.Column="2" RowSpacing="10">
+    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+    <Grid RowSpacing="8"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <StackPanel><TextBlock x:Name="PreviewTitle" Tag="data" Text="选择素材" FontSize="18" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+      <TextBlock x:Name="PreviewDetail" FontSize="12" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/>
+      <local:WrapPanel x:Name="PreviewSettings" Visibility="Collapsed" Spacing="4" Margin="0,2,0,0">
+       <ComboBox x:Name="ResolutionChoice" MinWidth="132" MinHeight="24" Padding="6,1" FontSize="12" SelectedIndex="1" SelectionChanged="RenderSettings_Changed" AutomationProperties.Name="预览分辨率"><x:String>720p</x:String><x:String>1080p</x:String><x:String>720p（竖屏）</x:String><x:String>1080p（竖屏）</x:String><x:String>480p</x:String></ComboBox>
+       <TextBlock Text="·" VerticalAlignment="Center"/>
+       <ComboBox x:Name="FpsChoice" MinWidth="88" MinHeight="24" Padding="6,1" FontSize="12" SelectedIndex="0" SelectionChanged="Fps_Changed" AutomationProperties.Name="动画帧率"><x:String>60 FPS</x:String><x:String>120 FPS</x:String></ComboBox>
+       <TextBlock Text="·" VerticalAlignment="Center"/>
+       <ComboBox x:Name="RendererChoice" MinWidth="65" MinHeight="24" Padding="6,1" FontSize="12" SelectedIndex="1" SelectionChanged="RenderSettings_Changed" AutomationProperties.Name="渲染方式"><x:String>CPU</x:String><x:String>GPU</x:String></ComboBox>
+      </local:WrapPanel>
+     </StackPanel>
+     <local:WrapPanel x:Name="PreviewTools" Grid.Row="1" Spacing="6">
+      <ComboBox x:Name="BackgroundChoice" SelectionChanged="Background_Changed" MinWidth="100"><x:String>棋盘</x:String><x:String>黑色</x:String><x:String>白色</x:String></ComboBox>
+      <ComboBox x:Name="ScaleChoice" Width="90" SelectedIndex="3" SelectionChanged="Scale_Changed" AutomationProperties.Name="屏幕比例" ToolTipService.ToolTip="1:1 原尺寸；适应保留比例；拉伸填满"><x:String>1:1</x:String><x:String>16:9</x:String><x:String>4:3</x:String><x:String>适应</x:String><x:String>拉伸</x:String></ComboBox>
+      <DropDownButton x:Name="ExportMenu" Content="导出"><DropDownButton.Flyout><MenuFlyout>
+       <MenuFlyoutItem Text="当前帧 PNG" Tag="frame" Click="Export_Click"/>
+       <MenuFlyoutItem Text="动画 WebP" Tag="webp" Click="Export_Click"/>
+       <MenuFlyoutItem x:Name="MP4ExportMenuItem" Text="动画 / 视频 MP4…" Click="ExportMP4_Click" IsEnabled="False"/>
+       <MenuFlyoutItem Text="PNG 序列" Tag="sequence" Click="Export_Click"/>
+       <MenuFlyoutSeparator/>
+       <MenuFlyoutItem Text="当前素材" Tag="asset" Click="Export_Click"/>
+       <MenuFlyoutItem Text="全部纹理 PNG" Tag="textures" Click="Export_Click"/>
+       <MenuFlyoutItem Text="解包音频…" Tag="audio" Click="Export_Click"/>
+       <MenuFlyoutSeparator/>
+       <MenuFlyoutItem x:Name="SongExportMenuItem" Text="音频/视频导出…" Click="SongExport_Click" IsEnabled="False"/>
+      </MenuFlyout></DropDownButton.Flyout></DropDownButton>
+      <Button x:Name="AnimationInfoButton" Content="动画信息" Click="AnimationInfo_Click"/>
+      <Button x:Name="LiveEditorButton" Content="编辑 Live2D" Click="LiveEditor_Click" Visibility="Collapsed"/>
+      <Button x:Name="LayersButton" Content="素材列表" IsEnabled="False" ToolTipService.ToolTip="点击预览选中素材；动画导出使用当前选择">
+       <Button.Flyout><Flyout x:Name="LayersFlyout" Opened="Layers_Opened"><Grid Width="420" Height="500" RowSpacing="10">
+        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+        <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions><TextBlock Text="素材列表" FontWeight="SemiBold"/><Button Grid.Column="1" Content="刷新" Click="LayersRefresh_Click"/></Grid>
+        <TextBox x:Name="LayerSearch" Grid.Row="1" PlaceholderText="搜索素材" TextChanged="LayerSearch_Changed"/>
+        <StackPanel x:Name="LayerActions" Grid.Row="2" Spacing="6"><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="全显示" Tag="show" Click="LayersAll_Click"/><Button Content="全隐藏" Tag="hide" Click="LayersAll_Click"/></StackPanel><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="全部展开" Tag="expand" Click="FoldAll_Click"/><Button Content="全部收起" Tag="collapse" Click="FoldAll_Click"/></StackPanel></StackPanel>
+        <ListView x:Name="LayersList" Grid.Row="3" SelectionMode="Single" SelectionChanged="LayerSelection_Changed"><ListView.ItemTemplate><DataTemplate x:DataType="local:AnimationLayer">
+         <Grid Margin="{x:Bind Indent}" ColumnSpacing="5"><Grid.ColumnDefinitions><ColumnDefinition Width="24"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+          <Button Tag="{x:Bind Id}" Click="FoldLayer_Click" Visibility="{x:Bind GroupVisibility, Mode=OneWay}" Padding="2" MinWidth="22" MinHeight="24"><FontIcon FontFamily="Segoe MDL2 Assets" Glyph="{x:Bind Chevron, Mode=OneWay}" FontSize="11"/></Button>
+          <CheckBox Grid.Column="1" IsChecked="{x:Bind Visible, Mode=OneWay}" Checked="Layer_Checked" Unchecked="Layer_Checked" ToolTipService.ToolTip="{x:Bind Id}"><StackPanel><TextBlock Tag="data" Text="{x:Bind Name}" TextTrimming="CharacterEllipsis"/><TextBlock Text="{x:Bind Detail}" FontSize="11" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis"/></StackPanel></CheckBox>
+         </Grid>
+        </DataTemplate></ListView.ItemTemplate></ListView>
+        <TextBlock x:Name="LayerStatus" Grid.Row="4" FontSize="12" TextWrapping="Wrap"/>
+       </Grid></Flyout></Button.Flyout>
+      </Button>
+     </local:WrapPanel>
+    </Grid>
+    <Grid x:Name="PreviewGrid" Grid.Row="1" Background="{ThemeResource LayerFillColorDefaultBrush}" CornerRadius="8" SizeChanged="Preview_SizeChanged">
+     <Canvas x:Name="Checker" Background="#FFF0F0F0" SizeChanged="Checker_SizeChanged" IsHitTestVisible="False"/>
+     <ScrollViewer x:Name="ImageScroll" ZoomMode="Enabled" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" Visibility="Collapsed">
+      <Grid HorizontalAlignment="Center" VerticalAlignment="Center">
+       <Image x:Name="PreviewImage" Stretch="Uniform" HorizontalAlignment="Center" VerticalAlignment="Center" Tapped="PreviewImage_Tapped"/>
+       <Canvas IsHitTestVisible="False"><Rectangle x:Name="SelectionOutline" Stroke="{ThemeResource AccentFillColorDefaultBrush}" StrokeThickness="1.5" Visibility="Collapsed"/></Canvas>
+      </Grid>
+     </ScrollViewer>
+     <MediaPlayerElement x:Name="Video" AreTransportControlsEnabled="False" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Stretch="Fill"/>
+     <ScrollViewer x:Name="TextScroll" Visibility="Collapsed"><TextBlock x:Name="TextPreview" Tag="data" IsTextSelectionEnabled="True" TextWrapping="Wrap" FontFamily="Consolas" Padding="20"/></ScrollViewer>
+     <StackPanel x:Name="EmptyState" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="16">
+      <FontIcon x:Name="EmptyIcon" Glyph="&#xE8B9;" FontSize="60" HorizontalAlignment="Center"/>
+      <TextBlock x:Name="EmptyTitle" Text="打开目录或文件" FontSize="20" HorizontalAlignment="Center"/>
+      <TextBlock Text="动画 · 图像 · 音频 · BGA" Foreground="{ThemeResource TextFillColorSecondaryBrush}"/>
+     </StackPanel>
+     <ScrollViewer x:Name="SongPreviewHost" Visibility="Collapsed" Padding="14" VerticalScrollBarVisibility="Auto" SizeChanged="SongPreview_SizeChanged"/>
+     <ProgressRing x:Name="BusyRing" IsActive="False" Width="56" Height="56" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+    </Grid>
+    <Border x:Name="Notice" Grid.Row="2" Padding="10" Background="{ThemeResource InfoBarWarningSeverityBackgroundBrush}" CornerRadius="6" Visibility="Collapsed">
+     <TextBlock x:Name="WarningText" TextWrapping="Wrap" IsTextSelectionEnabled="True" FontSize="12" MaxLines="4"/>
+    </Border>
+    <Grid x:Name="MainPlaybackControls" Grid.Row="3" RowSpacing="4"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+     <Grid ColumnSpacing="8"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+      <Slider x:Name="TimelineSlider" Minimum="0" Maximum="1" ValueChanged="Timeline_Changed" VerticalAlignment="Center"/>
+      <TextBlock x:Name="TimeLabel" Grid.Column="1" Text="0 / 0" VerticalAlignment="Center" FontSize="12"/>
+     </Grid>
+     <StackPanel Grid.Row="1" Orientation="Horizontal" Spacing="8">
+     <Button x:Name="PlayButton" Click="Play_Click" AutomationProperties.Name="播放"><SymbolIcon x:Name="PlayIcon" Symbol="Play"/></Button>
+     <Button Content="‹" Click="Previous_Click"/><Button Content="›" Click="Next_Click"/>
+     <CheckBox x:Name="LoopChoice" Content="循环" IsChecked="True"/>
+     <ComboBox x:Name="SpeedChoice" Width="80" SelectionChanged="Speed_Changed"><x:String>0.25×</x:String><x:String>0.5×</x:String><x:String>1×</x:String><x:String>1.5×</x:String><x:String>2×</x:String></ComboBox>
+     </StackPanel>
+    </Grid>
+   </Grid>
+  </Grid>
+  <Grid Grid.Row="2" Padding="16,7" Background="{ThemeResource LayerFillColorDefaultBrush}">
+   <TextBlock x:Name="Status" Text="就绪" FontSize="12" TextTrimming="CharacterEllipsis" IsTextSelectionEnabled="True"/>
+  </Grid>
+ </Grid>
+</Window>

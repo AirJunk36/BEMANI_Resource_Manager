@@ -1,0 +1,25 @@
+BEMANI Resource Manager / BEMANI素材管理器
+Copyright (C) 2026 AirJunk36 and contributors.
+
+Unless a file carries a different notice, the original source code,
+documentation and default icon generator in this repository are licensed
+under the GNU General Public License, version 3 only (GPL-3.0-only).
+The full, unmodified license text is in LICENSE.
+
+This program is free software: you can redistribute it and/or modify it
+under the terms of version 3 of the GNU General Public License as
+published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See LICENSE.
+
+Third-party works retain their own copyright and license notices;
+see THIRD_PARTY_NOTICES.md and the notices under iidxviewer/third_party
+and iidxviewer/vendor/live2d. This notice does not relicense those works.
+
+Game data, game DLLs, Live2D Cubism Core binaries, and the private IIDX
+application artwork are not included in this source distribution.
+No Live2D linking exception is granted by this repository. The optional
+Live2D integration does not establish permission to distribute a combined
+GPL/proprietary runtime; see docs/LIVE2D.md before distributing binaries.
