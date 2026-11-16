@@ -1,2 +1,2 @@
-# BEMANI_Resource_Manager
+# BEMANI Resource Manager
 A manager on BEMANI series games
