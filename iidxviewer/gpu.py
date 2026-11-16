@@ -298,7 +298,7 @@ class GpuDevice:
             cb.endPass(read); active=False
             if self.rhi.endOffscreenFrame()!=G.QRhi.FrameOpResult.FrameOpSuccess:
                 raise GpuUnavailable("GPU 帧提交失败")
-            pixels=bytes(result.data)
+            pixels=memoryview(result.data)
             if len(pixels)!=size[0]*size[1]*4: raise GpuUnavailable("GPU 帧回读不完整")
             image=G.QImage(pixels,*size,size[0]*4,G.QImage.Format.Format_ARGB32_Premultiplied).copy()
         except BaseException:

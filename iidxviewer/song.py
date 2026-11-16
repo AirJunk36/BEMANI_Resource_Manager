@@ -157,10 +157,16 @@ def layer_timing(data, chart, original):
 
 def judgement_timing(data, chart, original):
     events,clock=chart_events(data,chart,original)
-    notes=sorted(time/clock for time,kind,_,_ in events if kind in (0,1) and time>=0)
+    notes=[]
+    for time,kind,_,hold in events:
+        if kind not in (0,1) or time<0:continue
+        notes.append(time/clock)
+        if hold:notes.append((time+hold)/clock)
+    notes.sort()
     measures=sorted({time/clock for time,kind,_,_ in events if kind==12})
-    end=max((time/clock for time,kind,_,_ in events if kind==6),default=max(notes,default=0)+1)
-    return notes,measures,max(end,max(notes,default=0))
+    # The chart end marker includes a post-song wait; the final judgement does not.
+    end=max(notes) if notes else max((time/clock for time,kind,_,_ in events if kind==6),default=0)
+    return notes,measures,end
 
 
 def triggers(data, chart, original):

@@ -37,6 +37,12 @@ class SongLayerTests(unittest.TestCase):
         data = chart_file([(0,7,0,1),(100,0,0,0),(100,0,1,0),(200,1,107,0),(300,7,0,2)])
         self.assertEqual(note_times(data,1,'33_test/song.s3p'),[.1,.2])
 
+    def test_final_note_release_precedes_chart_end_marker(self):
+        from iidxviewer.song import judgement_timing
+        data=chart_file([(100,0,0,500),(200,1,1,0),(3000,6,0,0)])
+        notes,_,end=judgement_timing(data,1,'33_test/song.2dx')
+        self.assertEqual(notes,[.1,.2,.6]);self.assertEqual(end,.6)
+
     def test_host_uses_root_duration_cooldown_and_reproducible_selection(self):
         package = layer_package()
         package.animations[1].movie.definitions[3] = ('sprite',timeline([[]]*300))

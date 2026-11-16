@@ -28,6 +28,10 @@ This repository contains source, not game data, game DLLs, Cubism Core,
 private application artwork or the previous private app bundles.
 Default icons are generated from project-owned drawing code.
 
+After Windows tests finish, `tools/windows/cleanup-tests.ps1` removes obsolete
+test bundles and temporary exports while retaining the current bundle and
+development environment. Use `-WhatIf` to preview the list.
+
 On macOS, install Python (3.13/3.14 recommended), the **macOS 26.0 SDK** and
 Swift 6.2 or newer. The deployment target is macOS 14.
 

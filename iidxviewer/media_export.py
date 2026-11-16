@@ -10,6 +10,8 @@ import subprocess
 import sys
 import tempfile
 import wave
+from queue import Queue, Empty, Full
+from threading import Event, Thread
 
 import imageio_ffmpeg
 
@@ -55,20 +57,40 @@ def encode(args, frames=None):
         process = subprocess.Popen([imageio_ffmpeg.get_ffmpeg_exe(), '-nostdin','-hide_banner','-loglevel','error',
                                     *args], stdin=subprocess.PIPE if frames is not None else subprocess.DEVNULL,
                                    stdout=subprocess.DEVNULL, stderr=log, creationflags=FLAGS)
+        abort=Event();errors=[];writer=None
         try:
             if frames is not None:
-                try:
-                    for frame in frames:
-                        process.stdin.write(frame)
-                finally:
-                    process.stdin.close()
+                queue=Queue(maxsize=2)
+                def write_frames():
+                    try:
+                        while not abort.is_set():
+                            try:frame=queue.get(timeout=.1)
+                            except Empty:continue
+                            if frame is None:break
+                            process.stdin.write(frame.data if isinstance(frame,FrameBuffer) else frame)
+                    except BaseException as error:errors.append(error)
+                    finally:
+                        try:process.stdin.close()
+                        except OSError as error:errors.append(error)
+                        if errors:abort.set()
+                def send(frame):
+                    while not abort.is_set():
+                        try:queue.put(frame,timeout=.1);return
+                        except Full:pass
+                    raise errors[0]
+                writer=Thread(target=write_frames,name='video-pipe',daemon=True);writer.start()
+                for frame in frames:send(frame)
+                send(None);writer.join()
+                if errors:raise errors[0]
             code = process.wait(timeout=1800)
             if code:
                 log.seek(0)
                 raise ValueError('视频编码失败：' + log.read().decode('utf8','replace')[-1200:])
         except BaseException:
+            abort.set()
             if process.poll() is None: process.kill()
             process.wait()
+            if writer:writer.join(timeout=5)
             raise
 
 
@@ -77,17 +99,24 @@ def size_for(resolution):
     return SIZES[resolution]
 
 
-def frame_bytes(renderer, seconds, size, loop=False, offset=0, stretch=False):
+class FrameBuffer:
+    """Retain the QImage while the pipe thread reads its immutable RGBA buffer."""
+    __slots__=('image','data')
+    def __init__(self,image):self.image=image;self.data=image.constBits()
+
+
+def frame_image(renderer, seconds, size, loop=False, offset=0, stretch=False):
     from PySide6.QtCore import QPoint
     from PySide6.QtGui import QImage, QPainter
     w, h = size
-    out = QImage(w, h, QImage.Format.Format_RGBA8888); out.fill(0)
     at = math.floor((seconds - offset) * renderer.animation.movie.fps + 1e-7)
-    if seconds >= offset and (loop or at < renderer.animation.length):
+    active=seconds>=offset and (loop or at<renderer.animation.length)
+    if active and stretch:
+        at=at%renderer.animation.length if loop else at
+        return renderer.render(at,size).convertToFormat(QImage.Format.Format_RGBA8888)
+    out = QImage(w, h, QImage.Format.Format_RGBA8888); out.fill(0)
+    if active:
         at = at % renderer.animation.length if loop else at
-        if stretch:
-            image=renderer.render(at,size).convertToFormat(QImage.Format.Format_RGBA8888)
-            return bytes(image.constBits())
         rect = getattr(renderer,'rect',renderer.animation.movie.rect)
         sw, sh = max(1,rect[1]-rect[0]), max(1,rect[3]-rect[2])
         scale = min(w/sw, h/sh)
@@ -95,10 +124,15 @@ def frame_bytes(renderer, seconds, size, loop=False, offset=0, stretch=False):
         painter = QPainter(out)
         painter.drawImage(QPoint((w-image.width())//2,(h-image.height())//2),image)
         painter.end()
-    return bytes(out.constBits())
+    return out
 
 
-def frames_for(renderer, duration, size, fps, loop=False, offset=0, stretch=False):
+def frame_bytes(renderer, seconds, size, loop=False, offset=0, stretch=False):
+    image=frame_image(renderer,seconds,size,loop,offset,stretch)
+    return bytes(image.constBits())
+
+
+def frames_for(renderer, duration, size, fps, loop=False, offset=0, stretch=False,buffers=False):
     previous = object(); pixels = None
     source_fps = renderer.animation.movie.fps
     for i in range(math.ceil(duration*fps)):
@@ -108,7 +142,8 @@ def frames_for(renderer, duration, size, fps, loop=False, offset=0, stretch=Fals
         if getattr(renderer,'static',False) and key is not None: key = 0
         if key != previous:
             with native_scope():
-                pixels = frame_bytes(renderer,seconds,size,loop,offset,stretch)
+                image=frame_image(renderer,seconds,size,loop,offset,stretch)
+                pixels=FrameBuffer(image) if buffers else bytes(image.constBits())
             previous = key
         yield pixels
 
@@ -124,7 +159,7 @@ def animation_mp4(renderer, target, cache, fps=60, resolution='1080p'):
         encode(['-f','rawvideo','-pix_fmt','rgba','-s',f'{w}x{h}','-r',str(fps),'-i','pipe:0',
                 '-filter_complex',filters,'-map','[v]',*codec((w,h),fps),'-pix_fmt','yuv420p','-t',str(duration),
                 '-movflags','+faststart',str(output)],
-               frames_for(renderer,duration,(w,h),fps))
+               frames_for(renderer,duration,(w,h),fps,buffers=True))
         publish(output,target)
     return dict(path=str(target),seconds=duration)
 
@@ -143,7 +178,7 @@ def animation_gif(renderer, target, cache, fps=60, resolution='1080p'):
         output=Path(folder)/'animation.gif'
         encode(['-f','rawvideo','-pix_fmt','rgba','-s',f'{size[0]}x{size[1]}','-r',str(rate),'-i','pipe:0',
                 '-filter_complex',gif_palette(),'-map','[v]','-loop','0','-t',str(duration),str(output)],
-               frames_for(renderer,duration,size,rate))
+               frames_for(renderer,duration,size,rate,buffers=True))
         publish(output,target)
     return dict(path=str(target),seconds=duration)
 
@@ -303,7 +338,7 @@ def song_movie(audio, target, cache, options, notes=(), measures=()):
                     rect=getattr(drawing,'rect',drawing.animation.movie.rect);sw,sh=max(1,rect[1]-rect[0]),max(1,rect[3]-rect[2])
                     scale=min(1,viewport[0]/sw,viewport[1]/sh);render_size=(max(1,round(sw*scale)),max(1,round(sh*scale)))
                 args.extend(['-f','rawvideo','-pix_fmt','rgba','-s',f'{render_size[0]}x{render_size[1]}','-r',str(fps),'-i','pipe:0']); n+=1
-                frames=frames_for(drawing,duration,render_size,fps,bool(options.get('layer_loop',False)) and options.get('_chart_end') is None,layer_offset,True)
+                frames=frames_for(drawing,duration,render_size,fps,bool(options.get('layer_loop',False)) and options.get('_chart_end') is None,layer_offset,True,buffers=True)
                 filters.append(f'[0:v]scale={viewport[0]}:{viewport[1]},pad={w}:{h}:(ow-iw)/2:(oh-ih)/2:color=0x00000000'+
                                (',colorkey=black:0.08:0.02' if options.get('layer_black_key') else '')+'[fg]')
             elif layer:

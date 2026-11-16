@@ -32,8 +32,12 @@ class LocalizationTests(unittest.TestCase):
         missing=[]
         for path in [HOME/'backend.py',*(HOME/'iidxviewer').glob('*.py')]:
             for node in ast.walk(ast.parse(path.read_text(encoding='utf8'))):
-                if not isinstance(node,ast.Raise) or not isinstance(node.exc,ast.Call) or not node.exc.args:continue
-                text=message(node.exc.args[0])
+                args=()
+                if isinstance(node,ast.Raise) and isinstance(node.exc,ast.Call):args=node.exc.args
+                elif isinstance(node,ast.Call) and isinstance(node.func,ast.Attribute) and node.func.attr in {'append','add'}:
+                    if any(word in ast.unparse(node.func.value) for word in ('warning','issue','message')):args=node.args
+                if not args:continue
+                text=message(args[0])
                 if text and re.search('[\u4e00-\u9fff]',text):
                     if text not in catalog:missing.append(f'{path.name}:{node.lineno}: {text}')
                     else:

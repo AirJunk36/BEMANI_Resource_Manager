@@ -54,8 +54,8 @@ class HostStateTests(unittest.TestCase):
         p.animations=[Animation(name,a.movie,a.timeline) for name in names]
         data=chart_file([(100,0,i%7,0) for i in range(49)]+[(200,1,0,0),(3000,6,0,0)])
         notes,measures,end=judgement_timing(data,1,'33_test/song.2dx')
-        self.assertEqual(len(notes),50);self.assertEqual(end,3)
-        renderers=[GameLayerRenderer(p,{},notes,'cpu',measures,state,end_time=end) for state in ['clear','failed']]
+        self.assertEqual(len(notes),50);self.assertEqual(end,.2)
+        renderers=[GameLayerRenderer(p,{},notes,'cpu',measures,state,end_time=3) for state in ['clear','failed']]
         try:
             self.assertEqual(p.animations[renderers[0].cue_at(12)[1]].name,'boss_damage')
             for r in renderers:
@@ -70,7 +70,7 @@ class HostStateTests(unittest.TestCase):
             self.assertEqual(p.animations[renderers[0].cue_at(180)[1]].name,'boss_destroyed')
             self.assertEqual(p.animations[renderers[1].cue_at(180)[1]].name,'boss_escape')
             self.assertEqual(renderers[0].cue_at(180)[2],0)
-            self.assertGreater(renderers[0].outcome_end,end)
+            self.assertGreater(renderers[0].outcome_end,3)
         finally:
             for r in renderers:r.close()
 
@@ -144,6 +144,29 @@ class HostStateTests(unittest.TestCase):
                 tested+=1
             finally:p.close()
         if not tested:self.skipTest('No named BOSS fixture')
+
+    def test_real_rche_endings_start_at_final_note_release(self):
+        from iidxviewer.song import source,charts,judgement_timing
+        tested=0
+        for mid,expected in [(19016,125.838),(22065,101.838)]:
+            path=ROOT/'33_Sparkle_Shower/data/sound'/f'{mid}.ifs'
+            layer=ROOT/'33_Sparkle_Shower/data/graphic'/f'{mid}.ifs'
+            if not path.exists() or not layer.exists():continue
+            audio=open_package(path);p=open_package(layer)
+            try:
+                _,_,data=source(audio,path)
+                for chart in charts(data):
+                    notes,measures,end=judgement_timing(data,chart['id'],path)
+                    self.assertAlmostEqual(end,expected,places=3)
+                    for state in ['clear','failed']:
+                        r=GameLayerRenderer(p,{},notes,'cpu',measures,state,end_time=end)
+                        try:
+                            self.assertNotEqual(r.cue_at(r.finish-1)[1],profile(p)[state][0])
+                            self.assertEqual(r.cue_at(r.finish),(-1,profile(p)[state][0],0))
+                        finally:r.close()
+                tested+=1
+            finally:audio.close();p.close()
+        if not tested:self.skipTest('No Rche song fixtures')
 
     def test_legacy_nested_rotation_affects_the_child_position(self):
         from iidxviewer.legacy_idx import IndexData
