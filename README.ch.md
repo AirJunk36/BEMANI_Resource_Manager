@@ -2,7 +2,7 @@
 
 **BEMANI素材管理器 · 1.0.0 Beta2**
 
-[English](README.en.md) · [GPL-3.0](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
+[English](README.md) · [GPL-3.0](LICENSE) · [第三方许可](THIRD_PARTY_NOTICES.md)
 
 **本项目完全由Codex制作**
 
