@@ -43,7 +43,12 @@ def game_usage(resource, engine, animation_name):
         return dict(purpose='未识别', reason='未找到游戏运行库', references=[])
     game = Path(library['path']).with_name('bm2dx.dll')
     if not game.is_file():
-        return dict(purpose='未识别', reason='未找到 bm2dx.dll', references=[])
+        # Some installations retain the release number in the main DLL name.
+        # Ignore longer hook/backup suffixes such as bm2dx3333.dll.
+        candidates={int(match[1]):path for path in game.parent.glob('bm2dx*.dll')
+                    if (match:=re.fullmatch(r'bm2dx(\d{1,2})\.dll',path.name,re.I)) and path.is_file()}
+        game=candidates.get((engine or {}).get('game_version')) or (candidates[max(candidates)] if candidates else None)
+        if game is None:return dict(purpose='未识别', reason='未找到 bm2dx.dll', references=[])
     try:
         stat = game.stat()
         index = dll_strings(str(game), stat.st_size, stat.st_mtime_ns)

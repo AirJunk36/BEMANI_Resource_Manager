@@ -52,6 +52,16 @@ class AnimationInspectionTests(unittest.TestCase):
         self.assertEqual(report['game_usage']['purpose'],'未识别')
         self.assertIn('DLL 读取：unsupported',text_report(report))
 
+    def test_numbered_game_dll_is_used_without_selecting_hook_variants(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            for name in ['bm2dx13.dll','bm2dx33.dll','bm2dx3333.dll']:(root/name).write_bytes(b'test')
+            index=dict(path=str(root/'bm2dx33.dll'),sha256='test',strings=[(0x1234,'/0/title.ifs')])
+            with patch('iidxviewer.animation_inspection.dll_strings',return_value=index) as read:
+                result=game_usage(root/'data/graphic/0/title.ifs',dict(game_version=33,library=dict(path=str(root/'afp-core.dll'))),'title')
+            self.assertEqual(Path(read.call_args.args[0]).name,'bm2dx33.dll')
+            self.assertEqual(result['purpose'],'标题画面')
+
     def test_cycle_is_bounded(self):
         package, animation = fixture()
         animation.movie.definitions[2]=('sprite',animation.timeline)
