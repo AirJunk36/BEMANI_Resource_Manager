@@ -133,4 +133,9 @@ class NativeExportTests(unittest.TestCase):
                     finally:drawing.close()
                     target=root/'frame.png';service.dispatch(dict(method='export',kind='frame',animation=0,frame=frame,target=str(target),renderer='cpu'))
                     self.assertEqual(Image.open(target).size,(100,180))
+                    if service.package.format=='legacy':
+                        local=next(i for i,a in enumerate(service.package.animations) if a.name=='K_')
+                        info=service.render(local,30,renderer='cpu')
+                        with Image.open(info['path']) as image:
+                            self.assertEqual(image.size,(100,180));self.assertIsNotNone(image.getbbox())
                 finally:service.close()

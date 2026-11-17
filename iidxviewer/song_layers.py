@@ -138,7 +138,7 @@ class GameLayerRenderer:
         self.starts = [cue[0] for cue in self.cues]
         first = fixed if fixed is not None else self.cues[0][2] if self.profile else self.sequence if self.sequence is not None else choices[0].index
         length=max(1,math.ceil((self.outcome_end or self.finish/60)*60)) if self.has_end else 108001
-        self.animation = SimpleNamespace(length=length, movie=SimpleNamespace(fps=60, rect=canvas(package,package.animations[first])))
+        self.animation = SimpleNamespace(length=length, movie=SimpleNamespace(fps=60, rect=canvas(package,package.animations[first],playback=True)))
         self.device = None
         self.drawing = None
         if mode == 'gpu':

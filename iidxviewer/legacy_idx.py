@@ -354,9 +354,12 @@ def load_index(package, path, cancelled):
         asset = Asset(f"tex/{cell_names[i]}.png", "图片", source, details=f"{cell[2]} × {cell[3]}", edit_target={"kind": "legacy_image", "rect": cell})
         package.assets.append(asset)
         package.files[asset.name] = asset
+    local_starts={record['id'] for record in index.records if record['type']==2}
     for name, start in sorted(index.animation_names.items()):
         if cancelled():
             raise InterruptedError()
-        package.animations.append(LegacyAnimation(name, index, start, cell_names))
+        animation=LegacyAnimation(name,index,start,cell_names)
+        animation.local=start in local_starts
+        package.animations.append(animation)
     package.assets.append(Asset("original/" + path.name, "文件", path, path.stat().st_size, edit_target={"kind": "legacy_raw", "file": path.name}))
     return package
