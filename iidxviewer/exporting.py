@@ -1,5 +1,7 @@
 """Exports always target new files; existing files and game paths are refused."""
 from pathlib import Path
+from contextlib import contextmanager
+import math
 import re
 import unicodedata
 
@@ -32,6 +34,48 @@ def write_new(path, data):
     # Exclusive create also prevents an overwrite race after the file dialog.
     with Path(path).open("xb") as f:
         f.write(data)
+
+
+def crop_frame(image):
+    """Trim transparent margins without scaling the source pixels."""
+    import numpy as np
+    from PySide6.QtGui import QImage
+    rgba=image.convertToFormat(QImage.Format.Format_RGBA8888)
+    alpha=np.frombuffer(rgba.constBits(),np.uint8).reshape(rgba.height(),rgba.width(),4)[:,:,3]
+    xs=np.flatnonzero(alpha.any(axis=0));ys=np.flatnonzero(alpha.any(axis=1))
+    return rgba.copy(int(xs[0]),int(ys[0]),int(xs[-1]-xs[0]+1),int(ys[-1]-ys[0]+1)) if len(xs) else rgba.copy(0,0,1,1)
+
+
+@contextmanager
+def native_animation(renderer):
+    """Use one content rectangle for the entire export, preserving motion.
+
+    Measure transformed triangles, not encoded frames: this avoids a second
+    render pass and retains subpixel placement across a moving animation.
+    """
+    scene=getattr(renderer,'scene',None)
+    if scene is None:
+        yield renderer
+        return
+    original=getattr(scene,'export_rect',None);left,right,top,bottom=scene.rect
+    x0=y0=math.inf;x1=y1=-math.inf
+    try:
+        for frame in range(renderer.animation.length):
+            for draw in scene.draws(frame):
+                if draw.multiply[3]<=0 and draw.add[3]<=0:continue
+                a,b,c,d,x,y=draw.matrix
+                for u,v,*_ in draw.vertices:
+                    xx,yy=a*u+c*v+x,b*u+d*v+y
+                    x0=min(x0,xx);x1=max(x1,xx);y0=min(y0,yy);y1=max(y1,yy)
+        if x0<x1 and y0<y1:
+            rect=max(left,math.floor(x0)),min(right,math.ceil(x1)),max(top,math.floor(y0)),min(bottom,math.ceil(y1))
+            scene.export_rect=rect if rect[0]<rect[1] and rect[2]<rect[3] else (left,left+1,top,top+1)
+        else:scene.export_rect=(left,left+1,top,top+1)
+        yield renderer
+    finally:
+        if original is None:
+            if hasattr(scene,'export_rect'):del scene.export_rect
+        else:scene.export_rect=original
 
 
 def original_audio(asset, *, probe=False, replaced=False):

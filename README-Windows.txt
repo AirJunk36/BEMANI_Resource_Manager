@@ -1,4 +1,4 @@
-BEMANI Resource Manager 1.0.0 Beta
+BEMANI Resource Manager 1.0.0 Beta2
 
 这是 GPL-3.0-only 源码发布。构建步骤见 README.md。
 从源码构建需安装 Python、.NET 8 SDK 和 Windows 开发工具。

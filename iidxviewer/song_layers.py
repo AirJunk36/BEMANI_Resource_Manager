@@ -201,7 +201,7 @@ class GameLayerRenderer:
         health=round(self.gauge_at(frame),6) if self.profile and (self.profile['gauge'] or self.profile.get('military')) else None
         return sequence, cue, health
 
-    def draw_clip(self, index, frame, size, painter):
+    def draw_clip(self, index, frame, size, painter=None):
         from .scene import Scene
         if index not in self.scenes:
             self.scenes[index] = Scene(self.package, self.package.animations[index])
@@ -218,29 +218,36 @@ class GameLayerRenderer:
             self.drawing.scene.owns_actor=False
             self.drawing.scene.host_frame=math.floor(self.song_frame*self.host_actor.animation.movie.fps/60+1e-7)
         if getattr(animation,'legacy',False): frame %= animation.length
-        painter.drawImage(0,0,self.drawing.render(frame,size))
+        image=self.drawing.render(frame,size)
+        if painter is not None:painter.drawImage(0,0,image)
+        return image
 
     def render(self, frame, size=None):
         from PySide6.QtGui import QImage, QPainter
-        size = size or (640, 480)
+        size = size or (self.rect[1]-self.rect[0],self.rect[3]-self.rect[2])
         self.song_frame=frame
+        clips=[]
+        if self.sequence is not None and not (self.has_end and frame>=self.finish):
+            local=math.floor(frame*self.package.animations[self.sequence].movie.fps/60+1e-7)
+            clips.append((self.sequence,local,None))
+        cue=self.cue_at(frame)
+        if cue is not None:
+            at,index,local=cue;clips.append((index,local,at))
+        if self.profile:
+            clips.extend((index,min(frame,self.package.animations[index].length-1),None) for index in self.profile['gauge'])
+        def draw(index,local,at,painter=None):
+            if at is not None:
+                if self.active!=at and index in self.scenes and self.scenes[index].playback:self.scenes[index].playback.reset()
+                self.active=at
+            return self.draw_clip(index,local,size,painter)
+        # A single clip is already a complete transparent frame. Returning its
+        # buffer avoids allocating, clearing and compositing a second image.
+        if len(clips)==1:return draw(*clips[0])
         image = QImage(*size, QImage.Format.Format_ARGB32_Premultiplied)
         image.fill(0)
         painter = QPainter(image)
         try:
-            if self.sequence is not None and not (self.has_end and frame>=self.finish):
-                local = math.floor(frame*self.package.animations[self.sequence].movie.fps/60 + 1e-7)
-                self.draw_clip(self.sequence, local, size, painter)
-            cue = self.cue_at(frame)
-            if cue is not None:
-                at, index, local = cue
-                if self.active != at and index in self.scenes and self.scenes[index].playback:
-                    self.scenes[index].playback.reset()
-                self.draw_clip(index, local, size, painter)
-                self.active = at
-            if self.profile:
-                for index in self.profile['gauge']:
-                    self.draw_clip(index,min(frame,self.package.animations[index].length-1),size,painter)
+            for index,local,at in clips:draw(index,local,at,painter)
         finally:
             painter.end()
         return image

@@ -20,7 +20,7 @@ struct IIDXViewerApp: App {
         .defaultSize(width: 1460, height: 920)
         .commands {
             CommandGroup(replacing: .appInfo) {
-                Button(tr("关于 BEMANI素材管理器")) { NSApplication.shared.orderFrontStandardAboutPanel(options:[.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"BEMANIDisplayVersion") as? String ?? "1.0.0 Beta"]) }
+                Button(tr("关于 BEMANI素材管理器")) { NSApplication.shared.orderFrontStandardAboutPanel(options:[.applicationVersion:Bundle.main.object(forInfoDictionaryKey:"BEMANIDisplayVersion") as? String ?? "1.0.0 Beta2"]) }
             }
             CommandMenu("Language / 语言") {
                 Picker("Language / 语言",selection:$language.code) {
@@ -153,7 +153,7 @@ struct ViewerWindow: View {
                         if model.hasSongPreview && (model.assetSearch.isEmpty || tr("完整乐曲预览").localizedCaseInsensitiveContains(model.assetSearch)) {
                             Section {
                                 if !collapsedCategories.contains("预览") || !model.assetSearch.isEmpty {
-                                    Label(tr("完整乐曲预览"),systemImage:"music.note.list").tag("song").id("song")
+                                    Label(tr("完整乐曲预览"),systemImage:"music.note.list").tag("song")
                                 }
                             } header: { categoryHeader("预览",count:1) }
                         }
@@ -161,7 +161,7 @@ struct ViewerWindow: View {
                             Section {
                               if !collapsedCategories.contains("动画") || !model.assetSearch.isEmpty {
                                 ForEach(model.filteredAnimations) { a in
-                                    Label(a.name, systemImage: "play.rectangle").lineLimit(1).help(a.name).tag("a:\(a.id)").id("a:\(a.id)")
+                                    Label(a.name, systemImage: "play.rectangle").lineLimit(1).help(a.name).tag("a:\(a.id)")
                                 }
                               }
                             } header: { categoryHeader("动画", count: package.animations.count) }
@@ -172,7 +172,7 @@ struct ViewerWindow: View {
                                 Section {
                                   if !collapsedCategories.contains(group) || !model.assetSearch.isEmpty {
                                     ForEach(assets) { asset in
-                                        Text(asset.name).lineLimit(1).truncationMode(.middle).help(asset.details.isEmpty ? asset.name : tr(asset.details)).tag("f:\(asset.id)").id("f:\(asset.id)")
+                                        Text(asset.name).lineLimit(1).truncationMode(.middle).help(asset.details.isEmpty ? asset.name : tr(asset.details)).tag("f:\(asset.id)")
                                     }
                                   }
                                 } header: { categoryHeader(group, count: assets.count) }

@@ -46,13 +46,15 @@ def copy_sources(package, folder, *, primary=True):
 
 
 def expand_tracks(package, parent):
+    if hasattr(parent,'tracks'):return parent.tracks
     existing = [a for a in package.assets if a.edit_target and a.edit_target.get("kind") == "ifs_track" and a.edit_target.get("parent") == parent.name]
     if existing:
         return existing
     tracks = audio_assets(parent.read(), parent.name)
     for track in tracks:
-        track.edit_target = {"kind": "ifs_track", "parent": parent.name, "index": track.edit_target["index"]}
+        track.edit_target = {"kind": "ifs_track", "parent": parent.name, "index": track.edit_target["index"]} if package.format!='manifest' else None
     package.assets.extend(tracks)
+    parent.tracks=tracks
     return tracks
 
 

@@ -20,15 +20,15 @@ class LoadingTests(unittest.TestCase):
                 ffmpeg('-i',source,'-c:a','adpcm_ms',encoded);blobs.append(encoded.read_bytes())
             baseline=root/'baseline';baseline.mkdir()
             expected=[decode_sample(blob,baseline,i)[0].read_bytes() for i,blob in enumerate(blobs)]
-            sounds=[Asset(str(i),'音频',payload=blobs[i%2]) for i in range(14)]
+            sounds=[Asset(str(i),'音频',payload=blobs[i%2]) for i in range(26)]
             with patch('iidxviewer.song_decode.ROOT',root/'shared'):
-                first=root/'first';first.mkdir();values=decode_samples(sounds,range(1,15),first)
-                self.assertEqual(set(values),set(range(1,15)))
+                first=root/'first';first.mkdir();values=decode_samples(sounds,range(1,27),first)
+                self.assertEqual(set(values),set(range(1,27)))
                 for sample,(path,count) in values.items():
                     self.assertEqual(path.read_bytes(),expected[(sample-1)%2]);self.assertEqual(count,len(expected[(sample-1)%2])//8)
                 second=root/'second';second.mkdir()
                 with patch('iidxviewer.song_decode.subprocess.run',side_effect=AssertionError('Cached samples must not start a decoder')):
-                    reused=decode_samples(sounds,range(1,15),second)
+                    reused=decode_samples(sounds,range(1,27),second)
                 self.assertEqual({i:p.read_bytes() for i,(p,_) in reused.items()},{i:p.read_bytes() for i,(p,_) in values.items()})
 
     def test_scanning_preserves_versions_order_and_reloads_metadata_without_following_links(self):

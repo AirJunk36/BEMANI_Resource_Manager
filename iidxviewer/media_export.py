@@ -152,12 +152,15 @@ def animation_mp4(renderer, target, cache, fps=60, resolution='1080p'):
     if fps not in (60,120): raise ValueError('请选择 60 或 120 FPS')
     duration = renderer.animation.length / renderer.animation.movie.fps
     if not 0 < duration <= 1800: raise ValueError('动画时长无效')
-    w,h = size_for(resolution)
+    rect=getattr(renderer,'rect',renderer.animation.movie.rect)
+    w,h=max(1,math.ceil(rect[1]-rect[0])),max(1,math.ceil(rect[3]-rect[2]))
+    pixel_format='yuv444p' if w%2 or h%2 else 'yuv420p'
+    encoder=['-c:v','libx264','-preset','veryfast','-crf','20'] if pixel_format=='yuv444p' else codec((w,h),fps)
     with tempfile.TemporaryDirectory(prefix='video-',dir=cache) as folder:
         output = Path(folder)/'animation.mp4'
-        filters = f'color=c=black:s={w}x{h}:r={fps}[bg];[bg][0:v]overlay=shortest=1:format=auto,format=yuv420p[v]'
+        filters = f'color=c=black:s={w}x{h}:r={fps},format=rgba[bg];[bg][0:v]overlay=shortest=1:format=auto,format={pixel_format}[v]'
         encode(['-f','rawvideo','-pix_fmt','rgba','-s',f'{w}x{h}','-r',str(fps),'-i','pipe:0',
-                '-filter_complex',filters,'-map','[v]',*codec((w,h),fps),'-pix_fmt','yuv420p','-t',str(duration),
+                '-filter_complex',filters,'-map','[v]',*encoder,'-pix_fmt',pixel_format,'-t',str(duration),
                 '-movflags','+faststart',str(output)],
                frames_for(renderer,duration,(w,h),fps,buffers=True))
         publish(output,target)
@@ -173,7 +176,8 @@ def animation_gif(renderer, target, cache, fps=60, resolution='1080p'):
     if fps not in (60,120):raise ValueError('请选择 60 或 120 FPS')
     duration=renderer.animation.length/renderer.animation.movie.fps
     if not 0<duration<=1800:raise ValueError('动画时长无效')
-    size=size_for(resolution);rate=50  # GIF delays are measured in centiseconds.
+    rect=getattr(renderer,'rect',renderer.animation.movie.rect)
+    size=max(1,math.ceil(rect[1]-rect[0])),max(1,math.ceil(rect[3]-rect[2]));rate=50
     with tempfile.TemporaryDirectory(prefix='gif-',dir=cache) as folder:
         output=Path(folder)/'animation.gif'
         encode(['-f','rawvideo','-pix_fmt','rgba','-s',f'{size[0]}x{size[1]}','-r',str(rate),'-i','pipe:0',
@@ -184,10 +188,12 @@ def animation_gif(renderer, target, cache, fps=60, resolution='1080p'):
 
 
 def gif_from_video(source, target, cache, resolution='720p'):
-    w,h=size_for(resolution)
+    scale=''
+    if resolution is not None:
+        w,h=size_for(resolution);scale=f'scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,'
     with tempfile.TemporaryDirectory(prefix='gif-',dir=cache) as folder:
         output=Path(folder)/'video.gif'
-        palette=gif_palette().replace('[0:v]',f'[0:v]fps=50,scale={w}:{h}:force_original_aspect_ratio=decrease:flags=lanczos,')
+        palette=gif_palette().replace('[0:v]',f'[0:v]fps=50,{scale}')
         encode(['-i',str(source),'-filter_complex',palette,'-map','[v]','-an','-loop','0',str(output)])
         publish(output,target)
     return dict(path=str(target))
@@ -224,7 +230,7 @@ def video_mp4(asset, target, cache):
 
 def video_gif(asset, target, cache, resolution='720p'):
     with tempfile.TemporaryDirectory(prefix='gif-source-',dir=cache) as folder, video_source(asset,folder) as source:
-        return gif_from_video(source,target,cache,resolution)
+        return gif_from_video(source,target,cache,None)
 
 
 def layer_info(path, preferred=''):

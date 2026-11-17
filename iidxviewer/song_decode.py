@@ -59,7 +59,7 @@ def decode_samples(sounds,positions,folder):
         finally:
             for path in sources:path.unlink(missing_ok=True)
 
-    groups=[pending[i:i+12] for i in range(0,len(pending),12)]
+    groups=[pending[i:i+24] for i in range(0,len(pending),24)]
     with ThreadPoolExecutor(max_workers=4) as workers:
         for values in workers.map(batch,groups):decoded.update(values)
     # Bounded generated data; live jobs retain their own links.

@@ -222,9 +222,11 @@ def nearby_catalog(root):
 
 
 def annotate(entries):
-    roots = {}
+    roots = {};parents={}
     for item in entries:
-        root = next((p for p in item.path.parents if p.name.lower() == 'data'),None)
+        parent=item.path.parent
+        if parent not in parents:parents[parent]=next((p for p in item.path.parents if p.name.lower()=='data'),None)
+        root=parents[parent]
         if root is None: yield item, ''; continue
         if root not in roots:
             songs = catalog(root); movies = {};fallback=None
@@ -235,14 +237,14 @@ def annotate(entries):
                     movies.setdefault(song['bga'].lower(),[]).append(song['title']+' '+song['title_ascii']+' '+artist)
             roots[root] = songs,movies,fallback
         songs,movies,fallback = roots[root]
-        mid = song_key(item.path); song = songs.get(mid)
+        ident=file_id(item.path);mid=canonical_id(int(ident),len(ident)==4) if ident else None; song = songs.get(mid)
         if mid is not None and (song is None or not song.get('artist')):
             if fallback is None:
                 fallback=nearby_catalog(str(root));roots[root]=songs,movies,fallback
             if song is None:song=fallback.get(mid)
             elif mid in fallback:song={**fallback[mid],**song,'artist':fallback[mid].get('artist','')}
         title = song['title']+' '+song['title_ascii']+' '+song.get('artist','') if song else ''
-        if title and file_id(item.path):title+=' '+file_id(item.path)+f' {mid:05}'
+        if title and ident:title+=' '+ident+f' {mid:05}'
         if item.path.parent.name.lower() == 'movie':
             title = ' · '.join(movies.get(item.path.stem.lower(),[])) or title
         yield item,title

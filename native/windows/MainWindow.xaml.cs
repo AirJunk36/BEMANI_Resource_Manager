@@ -682,7 +682,7 @@ public sealed partial class MainWindow : Window
     private async void Help_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ContentDialog {
-            XamlRoot = Root.XamlRoot, Title = Tr("BEMANI素材管理器")+" · 1.0.0 Beta", CloseButtonText = Tr("完成"),
+            XamlRoot = Root.XamlRoot, Title = Tr("BEMANI素材管理器")+" · 1.0.0 Beta2", CloseButtonText = Tr("完成"),
             Content = Tr(new TextBlock { TextWrapping = TextWrapping.Wrap, Text = Tr("打开目录或文件，选择素材预览。\n空格播放 / 暂停，方向键逐帧，拖动进度条定位。\n导出支持 PNG、WebP、PNG 序列和原文件。\n\n替换后可预览、撤销；另存时选择新文件夹。\n\n支持 IFS、BIN/TXP2、IDX/GCZ。旧版素材需保留关联文件；部分效果可能不完整。" )}
         )};
         await dialog.ShowAsync();

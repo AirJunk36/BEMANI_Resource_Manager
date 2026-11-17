@@ -1,6 +1,6 @@
 # BEMANI Resource Manager
 
-**1.0.0 Beta** · [简体中文](README.md) · [GPL-3.0](LICENSE)
+**1.0.0 Beta2** · [简体中文](README.md) · [GPL-3.0](LICENSE)
 
 **This project was ENTIRELY made by Codex**
 

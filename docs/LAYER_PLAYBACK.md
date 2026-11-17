@@ -10,6 +10,8 @@
 
 组件按实际包内容判断，不根据目录名称补绘。血量按判定进度模拟，尚未完整还原所有 BOSS 的实际伤害及难度公式。
 
+Beta2：旧版数字编号 IDX / TXP2 Layer 按系统坐标中的 304 × 416 BGA 区域对齐，修复 `1409` 等素材被整张 640 × 480 系统画布缩放后产生的错位。单独素材的导出尺寸见 [Native material export](NATIVE_EXPORT.md)。
+
 Generated export names use English/ASCII labels. Replacement copy titles append `_replaced` once. Internal identifiers and filenames remain intact where encryption or related files depend on them.
 
 Clear uses all-PG judgements; Failed uses all-POOR judgements. The final note release interrupts long clips and selects the matching ending, without waiting for the chart's end marker. Components are used only when supplied by the actual resource package; absent modern HP artwork is never replaced with a synthetic overlay. The same timeline drives preview and video/GIF export.

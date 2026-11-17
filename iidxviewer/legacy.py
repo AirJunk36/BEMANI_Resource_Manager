@@ -25,17 +25,20 @@ class TextureStore:
     def __init__(self, blobs, flags):
         self.blobs, self.flags = blobs, flags
         self.cache = OrderedDict()
+        self.cache_bytes=0
 
     def image(self, index):
         if index not in self.cache:
             self.cache[index] = tdxt_image(texture_blob(self.blobs[index], self.flags))
+            image=self.cache[index];self.cache_bytes+=image.width*image.height*4
         self.cache.move_to_end(index)
-        while len(self.cache) > 1 and sum(im.width * im.height * 4 for im in self.cache.values()) > 96 * 1024 * 1024:
-            self.cache.popitem(last=False)
+        while len(self.cache)>1 and self.cache_bytes>96*1024*1024:
+            _,old=self.cache.popitem(last=False);self.cache_bytes-=old.width*old.height*4
         return self.cache[index]
 
     def close(self):
         self.cache.clear()
+        self.cache_bytes=0
 
 
 def count_table(reader, count, offset, stride):
@@ -159,9 +162,10 @@ def sibling(directory, name):
 
 
 def load_manifest(package, data, cancelled):
-    from .resources import Asset
+    from .resources import Asset, AUDIO_EXT, VIDEO_EXT
     from .legacy_idx import load_index
 
+    package.format = 'manifest'
     r = BinaryReader(data)
     version, count, kind = r.values("III", 4)
     if count > 100000 or len(data) < 16 or not count:
@@ -183,10 +187,21 @@ def load_manifest(package, data, cancelled):
             package.warnings.append(f"缺少关联素材：{path.name}，请保留原目录结构")
     # Integrity lists also occur beside sound and chart data; keep those readable.
     summary = json.dumps({"格式": "IIDX 文件索引", "版本": version, "类型": kind, "关联文件": entries}, ensure_ascii=False, indent=2).encode("utf8")
-    package.assets.append(Asset("00_BIN索引说明.json", "文件", payload=summary))
+    package.assets.append(Asset("manifest.json", "文件", payload=summary))
     package.assets.append(Asset("original/" + package.path.name, "文件", package.path, len(data)))
     if not index:
-        package.warnings.append("此 BIN 仅含文件索引")
+        # Osprey/Owl contain a directory, not embedded payloads. Keep linked
+        # banks and movies lazy, just as when opening those files directly.
+        for name in entries:
+            if cancelled():raise InterruptedError()
+            path = sibling(package.path.parent,name)
+            if not path.is_file():
+                package.warnings.append(f"缺少关联素材：{path.name}，请保留原目录结构")
+                continue
+            ext=path.suffix.lower()
+            kind='音频包' if ext in {'.2dx','.sd9','.s3p'} else '音频' if ext in AUDIO_EXT else '视频' if ext in VIDEO_EXT else '文件'
+            package.assets.append(Asset(path.name,kind,path,path.stat().st_size))
+            package.source_files.append(path)
     return package
 
 

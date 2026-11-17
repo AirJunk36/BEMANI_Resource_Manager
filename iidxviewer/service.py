@@ -9,7 +9,7 @@ import sys
 
 from PIL import Image
 
-from .exporting import check_destination, export_animation, original_audio, safe_name, write_new
+from .exporting import check_destination, export_animation, original_audio, safe_name, write_new, native_animation, crop_frame
 from .render import SceneRenderer
 from .resources import audio_assets, media_suffix, open_package, scan, unwrap_media
 from .editing import Editor, expand_tracks
@@ -387,12 +387,12 @@ class ResourceService:
                 head = source.read(150000 if text_file else 2048)
             text = head.decode("utf8", "replace") if text_file else head.hex(" ")
             return {"kind": "text", "text": text, "warnings": self.package.warnings}
-        data = asset.read()
         if asset.kind in {"图片", "图集"}:
             path = self.file(".png")
-            image = Image.open(BytesIO(data)).convert("RGBA")
+            image = asset.image()
             image.save(path)
             return {"kind": "image", "path": str(path), "width": image.width, "height": image.height, "warnings": []}
+        data = asset.read() if asset.kind!='音频包' else None
         if asset.kind in {"音频", "视频"}:
             blob = unwrap_media(data)
             # ASF Video Media GUID; S3V can contain audio or video.
@@ -421,7 +421,8 @@ class ResourceService:
             return {"kind": "video" if video else "audio", "path": str(output), "warnings": []}
         if asset.kind == "音频包":
             tracks = expand_tracks(self.package, asset)
-            return {"kind": "tracks", "assets": [self.asset_info(next(i for i, entry in enumerate(self.package.assets) if entry is a), a) for a in tracks]}
+            indexes={id(a):i for i,a in enumerate(self.package.assets)}
+            return {"kind": "tracks", "assets": [self.asset_info(indexes[id(a)],a) for a in tracks]}
         if asset.name.lower().endswith(".ifs"):
             path = self.file(".ifs")
             path.write_bytes(data)
@@ -494,7 +495,7 @@ class ResourceService:
             doc.edit(request)
             for control in self.layer_controls.values():control.revision+=1
             if request.get('operation') in {'texture','undo','redo'}:
-                self.clear_renderers();self.package._image_cache.clear()
+                self.clear_renderers();self.package._image_cache.clear();self.package._image_bytes=0
                 if self.gpu:self.gpu.reset_textures()
                 for i,path in enumerate(doc.textures):
                     name=path.relative_to(doc.root).as_posix()
@@ -601,7 +602,8 @@ class ResourceService:
                         control.hidden.update(k for k in request['hidden_layers'] if k in control.rows)
                     drawing = self.new_renderer(self.package.animations[index],request.get('renderer','gpu'))
                     try:
-                        (animation_gif if kind=='gif' else animation_mp4)(drawing,target,self.cache,int(request.get('fps',60)),request.get('resolution','1080p'))
+                        with native_animation(drawing):
+                            (animation_gif if kind=='gif' else animation_mp4)(drawing,target,self.cache,int(request.get('fps',60)),request.get('resolution','1080p'))
                     finally:
                         drawing.close()
                 else:
@@ -610,12 +612,17 @@ class ResourceService:
                     if kind=='gif':video_gif(asset,target,self.cache,request.get('resolution','720p'))
                     else:video_mp4(asset,target,self.cache)
             elif kind == "frame":
-                info = self.render(int(request["animation"]), int(request.get("frame", 0)), True)
-                write_new(target, Path(info["path"]).read_bytes())
+                index=int(request['animation']);drawing=self.new_renderer(self.package.animations[index],request.get('renderer','gpu'))
+                try:
+                    image=crop_frame(drawing.render(max(0,min(int(request.get('frame',0)),drawing.animation.length-1))))
+                    with target.open('xb') as handle:
+                        from PySide6.QtCore import QBuffer,QIODevice
+                        buffer=QBuffer();buffer.open(QIODevice.OpenModeFlag.WriteOnly);image.save(buffer,'PNG');handle.write(bytes(buffer.data()))
+                finally:drawing.close()
             elif kind in {"webp", "sequence"}:
                 renderer = self.new_renderer(self.package.animations[int(request["animation"])])
                 try:
-                    export_animation(renderer, target, kind == "webp")
+                    with native_animation(renderer):export_animation(renderer, target, kind == "webp")
                 finally:
                     renderer.close()
             elif kind == "textures":

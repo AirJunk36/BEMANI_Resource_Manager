@@ -16,7 +16,7 @@ def qimage(image):
 
 class SceneRenderer:
     @property
-    def rect(self):return getattr(self.scene,'rect',self.animation.movie.rect)
+    def rect(self):return getattr(self.scene,'export_rect',getattr(self.scene,'rect',self.animation.movie.rect))
     def close(self):
         self.scene.close()
         self.images.clear(); self.image_bytes = 0

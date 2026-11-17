@@ -93,9 +93,11 @@ class Package:
     format: str = "single"
     source_files: list = field(default_factory=list)
     _image_cache: OrderedDict = field(default_factory=OrderedDict)
+    _image_bytes: int = 0
 
     def close(self):
         self._image_cache.clear()
+        self._image_bytes=0
         if self.archive:
             if isinstance(self.archive, IFS):
                 seen = set()
@@ -122,8 +124,9 @@ class Package:
         im = obj.image()
         # Bounded decoded texture memory; the archive stays lazily loaded.
         self._image_cache[name] = im
-        while sum(x.width * x.height * 4 for x in self._image_cache.values()) > 128 * 1024 * 1024 and len(self._image_cache) > 1:
-            self._image_cache.popitem(last=False)
+        self._image_bytes+=im.width*im.height*4
+        while self._image_bytes > 128*1024*1024 and len(self._image_cache)>1:
+            _,old=self._image_cache.popitem(last=False);self._image_bytes-=old.width*old.height*4
         return im
 
 

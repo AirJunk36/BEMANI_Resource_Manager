@@ -203,7 +203,7 @@ class GpuDevice:
         return pipeline
 
     def render(self, package, scene, frame, size=None):
-        x0,x1,y0,y1 = getattr(scene,'rect',scene.animation.movie.rect)
+        x0,x1,y0,y1 = getattr(scene,'export_rect',getattr(scene,'rect',scene.animation.movie.rect))
         width,height=max(1,x1-x0),max(1,y1-y0)
         size=tuple(size or (width,height))
         if size[0]*size[1]>32*1024*1024: raise ValueError("动画画布过大")
@@ -327,7 +327,7 @@ class GpuDevice:
 
 class GpuSceneRenderer:
     @property
-    def rect(self):return getattr(self.scene,'rect',self.animation.movie.rect)
+    def rect(self):return getattr(self.scene,'export_rect',getattr(self.scene,'rect',self.animation.movie.rect))
     def close(self):
         self.scene.close()
         self.package = self.animation = None

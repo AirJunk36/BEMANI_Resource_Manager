@@ -92,8 +92,8 @@ class HostStateTests(unittest.TestCase):
                     full=next(d for d in draws if d.texture=='HP_GAUGE')
                     self.assertAlmostEqual(gauge.matrix[0]/full.matrix[0],.5)
                     frame=next(d for d in half if d.texture=='HP_WAKU')
-                    self.assertAlmostEqual(frame.matrix[0]*292,640*.98)
-                    self.assertAlmostEqual(frame.matrix[4],640*.01)
+                    self.assertAlmostEqual(frame.matrix[0]*292,304*.98)
+                    self.assertAlmostEqual(frame.matrix[4],168+304*.01)
                 else:
                     self.assertFalse(any(d.layer=='root/host-hp' for d in draws))
                     self.assertFalse(profile(p)['miss'])

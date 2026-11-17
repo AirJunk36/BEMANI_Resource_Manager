@@ -16,8 +16,10 @@ def motion_clip(name):
 def canvas(package, animation):
     from pathlib import Path
     path=Path(package.path)
-    if getattr(animation,'legacy',False) and (path.stem.isdecimal() or path.parent.name.isdecimal()):
-        return (0,640,0,480)
+    if getattr(package,'format','') in {'legacy','txp2'} and (path.stem.isdecimal() or path.parent.name.isdecimal()):
+        # Old gameplay scenes use screen coordinates. Their 304x416 movie
+        # window starts at x=168; fitting all 640x480 shrinks and shifts layers.
+        return (168,472,0,416)
     return animation.movie.rect
 
 

@@ -2,6 +2,7 @@ import AppKit
 import AVFoundation
 import Combine
 import Foundation
+import ImageIO
 import UniformTypeIdentifiers
 
 enum PreviewScale: String, CaseIterable {
@@ -264,7 +265,14 @@ final class ViewerModel: ObservableObject {
                 } else {
                     previewKind = info.kind; warnings = info.warnings ?? []
                     if let path = info.path {
-                        if info.kind == "image" { image = NSImage(contentsOfFile: path) }
+                        if info.kind == "image" {
+                            let decoded = await Task.detached(priority:.userInitiated) { () -> CGImage? in
+                                guard let source=CGImageSourceCreateWithURL(URL(fileURLWithPath:path) as CFURL,nil) else { return nil }
+                                return CGImageSourceCreateImageAtIndex(source,0,[kCGImageSourceShouldCacheImmediately:true] as CFDictionary)
+                            }.value
+                            guard token == generation else { return }
+                            image=decoded.map { NSImage(cgImage:$0,size:NSSize(width:$0.width,height:$0.height)) }
+                        }
                         else { player.replaceCurrentItem(with: AVPlayerItem(url: URL(fileURLWithPath: path))) }
                     }
                     text = info.text ?? ""
