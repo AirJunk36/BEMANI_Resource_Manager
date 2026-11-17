@@ -18,10 +18,14 @@ def canvas(package, animation, playback=False):
     path=Path(package.path)
     local=getattr(animation,'local',False) or (hasattr(animation.movie,'root') and animation.timeline is not animation.movie.root)
     if local and not playback:return animation.movie.rect
-    if getattr(package,'format','') in {'legacy','txp2'} and (path.stem.isdecimal() or path.parent.name.isdecimal()):
+    number=path.stem if path.stem.isdecimal() else path.parent.name
+    if getattr(package,'format','') in {'legacy','txp2'} and number.isdecimal():
         # Old gameplay scenes use screen coordinates. Their 304x416 movie
         # window starts at x=168; fitting all 640x480 shrinks and shifts layers.
-        return (168,472,0,416)
+        # VANESSA's portraits start at y=1; its paired movie omits that row.
+        # Correct composition only, keeping isolated clips and exports intact.
+        top=1 if playback and number=='1409' else 0
+        return (168,472,top,416+top)
     return animation.movie.rect
 
 

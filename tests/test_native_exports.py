@@ -3,13 +3,14 @@ from io import BytesIO
 import os
 from pathlib import Path
 import struct
+import subprocess
 import tempfile
 from types import SimpleNamespace
 import unittest
 
 os.environ.setdefault('QT_QPA_PLATFORM','offscreen')
 from PIL import Image
-from PySide6.QtGui import QGuiApplication
+from PySide6.QtGui import QGuiApplication,QImage
 from iidxviewer.resources import Asset,Package,open_package
 from iidxviewer.render import SceneRenderer
 from iidxviewer.service import ResourceService
@@ -139,3 +140,36 @@ class NativeExportTests(unittest.TestCase):
                         with Image.open(info['path']) as image:
                             self.assertEqual(image.size,(100,180));self.assertIsNotNone(image.getbbox())
                 finally:service.close()
+
+    def test_vanessa_song_layer_aligns_with_its_movie_without_changing_asset_coordinates(self):
+        import imageio_ffmpeg
+        import numpy as np
+        from iidxviewer.song_layers import GameLayerRenderer
+        cases=[('14_GOLD','data/graph/sys/1409/owl.bin'),
+               ('16_EMPRESS','data/graph/sys/1409/osprey.bin'),
+               ('18_Resort_Anthem','data/graph_data/sys/1409.bin')]
+        found=False
+        for version,relative in cases:
+            path=ROOT/version/relative;movie=ROOT/version/'data/movie/1409.4'
+            if not path.is_file() or not movie.is_file():continue
+            found=True
+            with self.subTest(version=version):
+                package=open_package(path);index=next(i for i,a in enumerate(package.animations) if a.name=='01')
+                drawing=GameLayerRenderer(package,None,[0],'cpu',end_time=10,fixed=index)
+                try:
+                    self.assertEqual(drawing.rect,(168,472,1,417))
+                    image=drawing.render(60).convertToFormat(QImage.Format.Format_RGBA8888)
+                    rgba=np.frombuffer(image.constBits(),np.uint8).reshape(416,304,4)
+                    mask=rgba[:,:,3]>127;y,x=np.where(mask)
+                    self.assertEqual((int(x.min()),int(y.min()),int(x.max()+1),int(y.max()+1)),(102,0,202,180))
+                    raw=subprocess.check_output([imageio_ffmpeg.get_ffmpeg_exe(),'-v','error','-ss','20','-i',str(movie),
+                                                 '-frames:v','1','-f','rawvideo','-pix_fmt','rgb24','pipe:1'])
+                    bga=np.frombuffer(raw,np.uint8).reshape(416,304,3).astype(float)
+                    error=np.mean((bga[mask]-rgba[:,:,:3][mask])**2)
+                    shifted=np.mean((bga[y+1,x]-rgba[y,x,:3])**2)
+                    self.assertLess(error,25);self.assertLess(error,shifted/3)
+                    standalone=SceneRenderer(package,package.animations[index])
+                    try:self.assertEqual(standalone.rect,(168,472,0,416))
+                    finally:standalone.close()
+                finally:drawing.close();package.close()
+        if not found:self.skipTest('VANESSA fixtures unavailable')
